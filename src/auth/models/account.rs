@@ -13,9 +13,9 @@ use uuid::Uuid;
 pub struct Account {
   pub id: Vec<u8>, // must be unique
   email: String, // must be unique
-  secret: String,
-  secret_timeout: u32,
-  verified: bool,
+  pub secret: String, // TODO: find a way to make these NOT pub
+  pub secret_timeout: u32,
+  pub verified: bool,
   verify_code: Option<String>, // a random verification code.  Once verified, make it None
   verify_timeout: Option<u32> // once verified, make it None.  seconds since unix epoch
 }
