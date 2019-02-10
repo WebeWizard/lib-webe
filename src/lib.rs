@@ -10,7 +10,6 @@ pub mod schema;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use diesel::prelude::*;
-use diesel::dsl::{select,exists};
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
 
 use schema::webe_accounts;
@@ -31,6 +30,8 @@ pub enum WebeAuthError {
     OtherError,
     PasswordExpired,
     Session(SessionError),
+    SessionNotFound,
+    SessionExpired,
     NotVerifiedError,
     User(UserError)
 }
@@ -43,18 +44,26 @@ impl WebeAuth {
         }
     }
 
-    pub fn create_account(&self, name: String, new_email: String, password: String) -> Result<Account,WebeAuthError> {
+    pub fn create_account(&self, user_name: String, new_email: String, password: String) -> Result<Account,WebeAuthError> {
         // create the new account
         match Account::new(new_email, password) {
             Ok(new_account) => {
-                // attempt to insert into database
+                // attempt to insert new account into database
                 match diesel::insert_into(schema::webe_accounts::table)
                     .values(&new_account)
                     .execute(&self.connection) {
                         Ok(_) => {
-                            match self.create_user(&new_account.id, name) {
-                                Ok(_) => return Ok(new_account),
-                                Err(err) => return Err(err)
+                            match User::new(&new_account.id, user_name) {
+                                Ok(new_user) => {
+                                    // attempt to insert default user into database
+                                    match diesel::insert_into(schema::webe_users::table)
+                                        .values(&new_user)
+                                        .execute(&self.connection) {
+                                            Ok(_) => return Ok(new_account),
+                                            Err(err) => return Err(WebeAuthError::DBError(err))
+                                    }
+                                },
+                                Err(err) => return Err(WebeAuthError::User(err))
                             }
                         },
                         Err(err) => {
@@ -75,20 +84,18 @@ impl WebeAuth {
             Err(error) => return Err(WebeAuthError::Account(error))
         }
     }
-
-    pub fn create_user(&self, account_id: &Vec<u8>, name: String) -> Result<User,WebeAuthError> {
-        // create the new user
-        match User::new(account_id, name) {
-            Ok(new_user) => {
-                // attempt to insert into database
-                match diesel::insert_into(schema::webe_users::table)
-                    .values(&new_user)
-                    .execute(&self.connection) {
-                        Ok(_) => return Ok(new_user),
-                        Err(err) => return Err(WebeAuthError::DBError(err))
-                }
-            },
-            Err(err) => return Err(WebeAuthError::User(err))
+    
+    // attempts to update the db session record with a new user and if successful, mutates the session
+    pub fn change_user(&self, current_session: &mut Session, user_id: &Vec<u8>) -> Result<(),WebeAuthError> {
+        match diesel::update(current_session as &Session) // diesel doesn't like mutable references
+            .set(schema::webe_sessions::user_id.eq(user_id))
+            .execute(&self.connection) {
+                Ok(1) => { // only 1 record updated is a success
+                    current_session.user_id = Some(user_id.to_vec());
+                    return Ok(());
+                },
+                Ok(_) => return Err(WebeAuthError::SessionNotFound),
+                Err(err) => return Err(WebeAuthError::DBError(err))
         }
     }
 
@@ -110,10 +117,18 @@ impl WebeAuth {
                                             if fetched_account.verified {
                                                 // validate that account owns the desired user_id
                                                 match User::belonging_to(&fetched_account).find(user_id)
-                                                    .load::<User>(&self.connection) {
+                                                    .first::<User>(&self.connection) {
                                                         Ok(_) => {
                                                             match Session::new(user_id) {
-                                                                Ok(session) => return Ok(session),
+                                                                Ok(session) => {
+                                                                    // insert new session into db
+                                                                    match diesel::insert_into(schema::webe_sessions::table)
+                                                                        .values(&session)
+                                                                        .execute(&self.connection) {
+                                                                            Ok(_) => return Ok(session),
+                                                                            Err(err) => return Err(WebeAuthError::DBError(err))
+                                                                    }
+                                                                },
                                                                 Err(err) => return Err(WebeAuthError::Session(err))
                                                             }
                                                         },
@@ -139,8 +154,29 @@ impl WebeAuth {
 
 #[cfg(test)]
 mod tests {
+
     #[test]
-    fn auth_account_db() {
+    fn connect_webeauth_to_db() {
+        assert_eq!(2 + 2, 4);
+    }
+
+    #[test]
+    fn create_new_account() {
+        assert_eq!(2 + 2, 4);
+    }
+
+    #[test]
+    fn verify_account() {
+        assert_eq!(2 + 2, 4);
+    }
+
+    #[test]
+    fn log_into_account() {
+        assert_eq!(2 + 2, 4);
+    }
+
+    #[test]
+    fn change_user() {
         assert_eq!(2 + 2, 4);
     }
 }

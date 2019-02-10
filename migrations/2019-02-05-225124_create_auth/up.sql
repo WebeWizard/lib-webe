@@ -27,8 +27,12 @@ CREATE TABLE webe_users (
 
 CREATE TABLE webe_sessions (
   token CHAR(20) NOT NULL PRIMARY KEY,
-  user_id BINARY(16) NOT NULL,
+  account_id BINARY(16) NOT NULL,
+  user_id BINARY(16),
   timeout INT UNSIGNED NOT NULL, /* Seconds since UNIX EPOCH */
+  FOREIGN KEY (account_id)
+    REFERENCES webe_accounts(id)
+    ON DELETE CASCADE,
   FOREIGN KEY (user_id)
     REFERENCES webe_users(id)
     ON DELETE CASCADE

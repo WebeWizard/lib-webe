@@ -57,26 +57,4 @@ impl Account {
       _ => return Err(AccountError::InvalidPassword)
     }    
   }
-
-  // Delete an account completely
-  // Consume the session
-  // pub fn delete (session: Session) -> Result<(),AccountError> {
-  //   // Assume the session is valid (logic should be behind some protected guard)
-  //   // delete the account from db (should cascade to all user related data)
-  //   // if successful, return OK, otherwise return error
-  // }
-
-  // pub fn verify (session: &Session, verify_code: String) -> Result<(),AccountError>{
-  //   // Assume the session is valid (logic should be behind some protected guard)
-  //   // fetch account record from db
-  //   // check current system time against verify expiration time
-  //   // -- if expired, return "verify_expired" error
-  //   // otherwise...
-  //   // check verify_code against the one stored on record
-  //   // if matches
-  //   // -- set record verify_code to None
-  //   // -- set record expiration to 
-  //   // if not
-  //   // -- return verification failed error
-  // }
 }

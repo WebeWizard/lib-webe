@@ -13,7 +13,8 @@ table! {
 table! {
     webe_sessions (token) {
         token -> Char,
-        user_id -> Binary,
+        account_id -> Binary,
+        user_id -> Nullable<Binary>,
         timeout -> Unsigned<Integer>,
     }
 }
@@ -26,6 +27,7 @@ table! {
     }
 }
 
+joinable!(webe_sessions -> webe_accounts (account_id));
 joinable!(webe_sessions -> webe_users (user_id));
 joinable!(webe_users -> webe_accounts (account_id));
 
