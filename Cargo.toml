@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 bcrypt = "0.3.0"
-diesel = { version = "1.4.1", features = ["mysql","chrono"] }
+diesel = { version = "1.4.1", features = ["mysql","chrono", "r2d2"] }
 rand = "0.6.5"
 uuid = { version = "0.7.2", features = ["v4"] }
 
