@@ -1,0 +1,1 @@
+pub const MAX_HEADER_SIZE: usize = 4096; // 4KB

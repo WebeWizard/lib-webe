@@ -52,3 +52,7 @@ Customer provides account email and password.
 - Else,
   - return a login error.
 
+## HTTP Server
+
+Assumes that everyone in the world is friendly and no one would ever try to abuse it.
+
