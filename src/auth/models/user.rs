@@ -12,6 +12,7 @@ pub struct User {
   name: String
 }
 
+#[derive(Debug)]
 pub enum UserError {
 
 }

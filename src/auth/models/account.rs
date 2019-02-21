@@ -20,6 +20,7 @@ pub struct Account {
   verify_timeout: Option<u32> // once verified, make it None.  seconds since unix epoch
 }
 
+#[derive(Debug)]
 pub enum AccountError {
   InvalidEmail, // email address does not meet validation standards
   InvalidPassword, // password does not meet validation standards

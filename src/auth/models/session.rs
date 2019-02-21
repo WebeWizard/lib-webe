@@ -20,6 +20,7 @@ pub struct Session {
   timeout: u32 // based on last time credentials were provided
 }
 
+#[derive(Debug)]
 pub enum SessionError {
   OtherError
 }
