@@ -2,44 +2,78 @@ use std::io::{BufRead, BufWriter, Write};
 use std::collections::HashMap;
 use std::net::TcpStream;
 
-use super::request::{Request, RequestError};
+use super::constants::RUST_BUFFER_SIZE;
 use super::status::Status;
 
 pub struct Response {
-    status: Status,
-    headers: HashMap<String, String>,
-    message_body: Option<Box<BufRead>>
+    pub status: Status,
+    pub headers: HashMap<String, String>,
+    pub message_body: Option<Box<BufRead>>
 }
 
 pub enum ResponseError {
+    ReadError, // error reading from message body
     WriteError
 }
 
 impl Response {
-    pub fn new(request: &Result<Request,RequestError>) -> Result<Response,ResponseError> {
+    // create an empty response from a status code
+    pub fn new(status: u16) -> Response {
         let headers = HashMap::<String,String>::new();
-        match request {
-            Ok(request) => {
-                Ok(Response{status: Status::from_code(200).unwrap(), headers: headers, message_body: None})
-            },
-            Err(error) => {
-                Ok(Response{status: Status::from_code(500).unwrap(), headers: headers, message_body: None})
-            }
-        }
+        return Response{
+            status: Status::from_code(200).unwrap(),
+            headers: headers,
+            message_body: None
+        };
     }
 
-    pub fn respond(&self, mut buf_writer: BufWriter<&TcpStream>) -> Result<(),ResponseError> {
+    pub fn respond(&mut self, mut buf_writer: BufWriter<&TcpStream>) -> Result<(),ResponseError> {
         // write the status line
         let status_line = format!("HTTP/1.1 {} {}\r\n", self.status.code, self.status.reason);
         match buf_writer.write_all(status_line.as_bytes()) {
             Ok(_) => {
                 // write the response headers
-
+                for (key, val) in self.headers.iter() {
+                    let header: String = format!("{}: {}\r\n", key, val);
+                    match buf_writer.write(header.as_bytes()) {
+                        Ok(_) => continue,
+                        Err(error) => return Err(ResponseError::WriteError)
+                    }
+                }
             },
             Err(error) => return Err(ResponseError::WriteError)
         }
         // write the message body
+        match &mut self.message_body {
+            Some(body_reader) => {
+                // begin with empty new line
+                match buf_writer.write(b"\r\n") {
+                    Ok(_) => {
+                        // iterate through message_body until it's empty
+                        // TODO: does fiddling with the buffer size help performance?
+                        let mut buf = [0u8; RUST_BUFFER_SIZE];
+                        loop {
+                            match body_reader.read(&mut buf) {
+                                Ok(0) => break,
+                                Ok(size) => {
+                                    match buf_writer.write(&buf[0..size]) {
+                                        Ok(_) => {},
+                                        Err(error) => return Err(ResponseError::WriteError)
+                                    }
+                                },
+                                Err(error) => return Err(ResponseError::ReadError)
+                            }
+                        }
+                    },
+                    Err(error) => return Err(ResponseError::WriteError)
+                }
+            },
+            None => {}
+        }
         // flush the stream
-        return Ok(());
+        match buf_writer.flush() {
+            Ok(_) => return Ok(()),
+            Err(error) => return Err(ResponseError::WriteError)
+        }
     }
 }

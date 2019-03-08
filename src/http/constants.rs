@@ -1,1 +1,1 @@
-pub const MAX_HEADER_SIZE: usize = 4096; // 4KB
+pub const RUST_BUFFER_SIZE: usize = 8192; // 8KB , default rust buffer size

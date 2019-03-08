@@ -1,15 +1,19 @@
-use std::net::{IpAddr, TcpListener, TcpStream};
+use std::collections::HashMap;
+use std::net::{Ipv4Addr, TcpListener, TcpStream};
 use std::io::{BufReader, BufWriter};
 use std::time::Duration;
+use std::sync::Arc;
 use std::thread;
 
 use super::request::Request;
 use super::response::Response;
+use super::responders::Responder;
 
 pub struct Server {
-    pub ip: IpAddr,
+    pub ip: Ipv4Addr,
     pub port: u16,
-    listener: TcpListener
+    listener: TcpListener,
+    pub routes: Arc<HashMap<(String, String), Box<Responder>>>
 }
 
 pub enum ServerError {
@@ -19,14 +23,15 @@ pub enum ServerError {
 }
 
 impl Server {
-    pub fn new(ip: &IpAddr, port: &u16) -> Result<Server, ServerError> {
+    pub fn new(ip: &Ipv4Addr, port: &u16) -> Result<Server, ServerError> {
         // attempt to bind the server to the specified ip and port
         match TcpListener::bind((ip.clone(), port.clone())) {
             Ok(listener) => {
                 return Ok(Server{ 
                     ip: ip.clone(),
                     port: port.clone(),
-                    listener: listener
+                    listener: listener,
+                    routes: Arc::new(HashMap::<(String, String), Box<Responder>>::new())
                 })
             },
             Err(error) => {return Err(ServerError::BindError(error))}
@@ -35,11 +40,13 @@ impl Server {
 
     // starts the server, blocks the thread while the server is running
     pub fn start(&self) -> Result<(), ServerError> {
+        println!("starting the server");
         for stream in self.listener.incoming() {
             match stream {
                 Ok(stream) => {
+                    let routes = self.routes.clone();
                     thread::spawn(move || {
-                        Server::process_stream(stream)
+                        Server::process_stream(stream, &routes)
                     });
                 },
                 Err(error) => return Err(ServerError::ConnectionFailed(error))
@@ -50,27 +57,84 @@ impl Server {
 
     // process a client request and give a result
     // TODO: handle these errors better (need to know the real error for logging, whatever)
-    pub fn process_stream(stream: TcpStream) -> Result<(), ServerError> {
+    pub fn process_stream(stream: TcpStream, routes: &Arc<HashMap<(String,String),Box<Responder>>>) -> Result<(), ServerError> {
         // keep alive by default with 5 second timeout
         match stream.set_read_timeout(Some(Duration::from_secs(5))) {
             Ok(_) => {
+                println!("set_read_timeout");
                 let keep_alive = true;
                 // get the request from the stream
                 let buf_reader = BufReader::new(&stream);
-                let request = Request::new(buf_reader);
-                // TODO: determine if request needs decoded?
-                // prepare the response
-                match Response::new(&request) { // 
-                    Ok(response) => {
-                        // send the response
-                        let buf_writer = BufWriter::new(&stream);
-                        match response.respond(buf_writer) {
-                            Ok(_) => return Ok(()),
-                            Err(error) => return Err(ServerError::InternalError)
+                match Request::new(buf_reader) {
+                    Ok(request) => {
+                        println!("Request URI: {:?}",request.uri);
+                        // TODO: determine if request needs decoded?
+                        
+                        // ~~ find the best responder ~~
+                        // non-terminal route params WILL NOT contain more than one request uri part
+                        // terminal route params WILL contain the remainder of the request uri
+                        let request_uri_parts: Vec<&str> = request.uri.split('/').collect();
+                        let request_uri_length = request_uri_parts.len();
+                        let keys: Vec<&(String,String)> = routes.keys().collect();
+                        match keys.iter().max_by_key(|key| {
+                            // compare method
+                            if key.0 != request.method {return 0}
+                            let route_uri_parts: Vec<&str> = key.1.split('/').collect();
+                            // compare length
+                            if route_uri_parts.len() >= request_uri_length {return 0}
+                            // find the one with the most matching parts
+                            let mut size = 0;
+                            for part in &request_uri_parts {
+                                if part == &route_uri_parts[size] || route_uri_parts[size].contains('<') {
+                                    size += 1;
+                                } else { // uri doesn't match
+                                    size = 0; 
+                                    break;
+                                }
+                            }
+                            return size;
+                        }) {
+                            Some(key) => {
+                                match routes.get(key) {
+                                    Some(responder) => {
+                                        let mut params = HashMap::<String,String>::new();
+                                        let route_uri_parts: Vec<&str> = key.1.split('/').collect();
+                                        let part_length = route_uri_parts.len();
+                                        for i in 0..part_length {
+                                            // if this is the last part of the route
+                                            // and the part is a route param
+                                            // then grab the remaining parts from the request uri
+                                            if route_uri_parts[i].contains('<') {
+                                                let name = route_uri_parts[i].to_owned();
+                                                let value = if i==part_length-1 {
+                                                        request_uri_parts[i..].join("/")
+                                                    } else {
+                                                        request_uri_parts[i].to_owned()
+                                                    };
+                                                println!("Processed part: {} , {}",name,value);
+                                                params.insert(name, value);
+                                            }
+                                        }
+                                        
+                                        if responder.validate(&request, &params) {
+                                            let mut response = responder.build_response(&request, &params);
+                                            match response.respond(BufWriter::new(&stream)) {
+                                                Ok(()) => {},
+                                                Err(error) => return Err(ServerError::InternalError)
+                                            }
+                                        } else {
+                                            //TODO: respond with bad request instead of internal error
+                                            return Err(ServerError::InternalError)
+                                        }
+                                    }
+                                    None => return Err(ServerError::InternalError)
+                                }
+                            },
+                            None => {} //TODO: respond with bad request
                         }
                     },
                     Err(error) => return Err(ServerError::InternalError)
-                } 
+                }
             },
             Err(_) => return Err(ServerError::InternalError)
         }
