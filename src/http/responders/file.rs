@@ -25,7 +25,7 @@ impl FileResponder {
             Ok(abs_path) => {
                 Ok(FileResponder { mount_point: abs_path, path_param: path_param })
             },
-            Err(error) => return Err(FileResponderError::BadPath)
+            Err(_error) => return Err(FileResponderError::BadPath)
         }
         
     }
@@ -51,10 +51,7 @@ impl Responder for FileResponder {
                         // at the moment we only return files. no directory
                         return abs_file_path.starts_with(&self.mount_point) && abs_file_path.is_file();
                     },
-                    Err(error) => {
-                        println!("{:?}",error);
-                        return false;
-                    }
+                    Err(_error) => return false
                 }
             },
             None => return false // no path provided
@@ -85,13 +82,13 @@ impl Responder for FileResponder {
                                         response.message_body = Some(Box::new(BufReader::new(file)));
                                         return response;
                                     },
-                                    Err(error) => return Response::new(500)
+                                    Err(_error) => return Response::new(500)
                                 }
                             },
-                            Err(error) => return Response::new(500)
+                            Err(_error) => return Response::new(500)
                         }
                     },
-                    Err(error) => return Response::new(500)
+                    Err(_error) => return Response::new(500)
                 }
             },
             None => return Response::new(500)

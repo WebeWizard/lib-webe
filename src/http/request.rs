@@ -49,7 +49,7 @@ impl Request {
                                                 }
                                             }
                                         },
-                                        Err(error) => return Err(RequestError::ReadError)
+                                        Err(_error) => return Err(RequestError::ReadError)
                                     }
                                 }
                                 return Ok( Request{ 

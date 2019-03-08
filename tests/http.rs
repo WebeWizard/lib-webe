@@ -20,22 +20,22 @@ fn start_server() {
                             let route = ("GET".to_owned(),"/files/<path>".to_owned());
                             routes.insert(route, Box::new(simple_file));
                         },
-                        Err(error) => {
-                            panic!("Bad path provided to FileResponer");
+                        Err(_error) => {
+                            panic!("Bad path provided to FileResponer.");
                         }
                     }
                     // start the server
                     match server.start() {
                         Ok(()) => {},
-                        Err(error) => {
-                            panic!("Server failed to start");
+                        Err(_error) => {
+                            panic!("Server failed to start.");
                         }
                     }
                 },
                 None => panic!("Server routes can't be mutable")
             }
         },
-        Err(error) => {
+        Err(_error) => {
             panic!("Failed to create server!");
         }
     }

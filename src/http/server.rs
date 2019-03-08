@@ -120,7 +120,7 @@ impl Server {
                                             let mut response = responder.build_response(&request, &params);
                                             match response.respond(BufWriter::new(&stream)) {
                                                 Ok(()) => {},
-                                                Err(error) => return Err(ServerError::InternalError)
+                                                Err(_error) => return Err(ServerError::InternalError)
                                             }
                                         } else {
                                             //TODO: respond with bad request instead of internal error
@@ -133,7 +133,7 @@ impl Server {
                             None => {} //TODO: respond with bad request
                         }
                     },
-                    Err(error) => return Err(ServerError::InternalError)
+                    Err(_error) => return Err(ServerError::InternalError)
                 }
             },
             Err(_) => return Err(ServerError::InternalError)

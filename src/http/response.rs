@@ -37,11 +37,11 @@ impl Response {
                     let header: String = format!("{}: {}\r\n", key, val);
                     match buf_writer.write(header.as_bytes()) {
                         Ok(_) => continue,
-                        Err(error) => return Err(ResponseError::WriteError)
+                        Err(_error) => return Err(ResponseError::WriteError)
                     }
                 }
             },
-            Err(error) => return Err(ResponseError::WriteError)
+            Err(_error) => return Err(ResponseError::WriteError)
         }
         // write the message body
         match &mut self.message_body {
@@ -58,14 +58,14 @@ impl Response {
                                 Ok(size) => {
                                     match buf_writer.write(&buf[0..size]) {
                                         Ok(_) => {},
-                                        Err(error) => return Err(ResponseError::WriteError)
+                                        Err(_error) => return Err(ResponseError::WriteError)
                                     }
                                 },
-                                Err(error) => return Err(ResponseError::ReadError)
+                                Err(_error) => return Err(ResponseError::ReadError)
                             }
                         }
                     },
-                    Err(error) => return Err(ResponseError::WriteError)
+                    Err(_error) => return Err(ResponseError::WriteError)
                 }
             },
             None => {}
@@ -73,7 +73,7 @@ impl Response {
         // flush the stream
         match buf_writer.flush() {
             Ok(_) => return Ok(()),
-            Err(error) => return Err(ResponseError::WriteError)
+            Err(_error) => return Err(ResponseError::WriteError)
         }
     }
 }
