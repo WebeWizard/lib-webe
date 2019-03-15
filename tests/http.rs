@@ -12,27 +12,23 @@ fn start_server() {
     let port: u16 = 8080;
     match Server::new(&ip, &port) {
         Ok(mut server) => {
-            match Arc::get_mut(&mut server.routes) {
-                Some(routes) => {
-                    // build a simple route
-                    match FileResponder::new("/home/webe".to_owned(), "<path>".to_owned()) {
-                        Ok(simple_file) => {
-                            let route = ("GET".to_owned(),"/files/<path>".to_owned());
-                            routes.insert(route, Box::new(simple_file));
-                        },
-                        Err(_error) => {
-                            panic!("Bad path provided to FileResponer.");
-                        }
-                    }
-                    // start the server
-                    match server.start() {
-                        Ok(()) => {},
-                        Err(_error) => {
-                            panic!("Server failed to start.");
-                        }
-                    }
+            // build a simple route
+            match FileResponder::new("/home/webe".to_owned(), "<path>".to_owned()) {
+                Ok(simple_file_responder) => {
+                    let route = ("GET".to_owned(),"/files/<path>".to_owned());
+                     // TODO: may fail if can't get mutable ref to routes arc
+                    server.add_route(route,simple_file_responder);
                 },
-                None => panic!("Server routes can't be mutable")
+                Err(_error) => {
+                    panic!("Bad path provided to FileResponer.");
+                }
+            }
+            // start the server
+            match server.start() {
+                Ok(()) => {},
+                Err(_error) => {
+                    panic!("Server failed to start.");
+                }
             }
         },
         Err(_error) => {

@@ -13,7 +13,7 @@ pub struct Server {
     pub ip: Ipv4Addr,
     pub port: u16,
     listener: TcpListener,
-    pub routes: Arc<HashMap<(String, String), Box<Responder>>>
+    pub routes: Arc<HashMap<(String, String), Box<Responder + 'static>>>
 }
 
 pub enum ServerError {
@@ -37,6 +37,16 @@ impl Server {
             Err(error) => {return Err(ServerError::BindError(error))}
         };
     }
+
+    pub fn add_route<T: Responder+'static>(&mut self, route: (String, String), responder: T) {
+        match Arc::get_mut(&mut self.routes) { // TODO: not sure why this is necessary when already borrowing mut self
+            Some(routes) => {
+                routes.insert(route, Box::new(responder));
+            },
+            None => {} //TODO: should this return some error if we can't get the mutable ref?
+        }
+    }
+
 
     // starts the server, blocks the thread while the server is running
     pub fn start(&self) -> Result<(), ServerError> {
