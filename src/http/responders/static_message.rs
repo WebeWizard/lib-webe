@@ -24,11 +24,11 @@ impl StaticResponder {
 }
 
 impl Responder for StaticResponder {
-    fn validate(&self, request: &Request, params: &HashMap<String,String>) -> bool {
-        true
+    fn validate(&self, request: &Request, params: &HashMap<String,String>) -> Result<u16,u16> {
+        Ok(200)
     }
 
-    fn build_response(&self, request: &Request, params: &HashMap<String,String>) -> Response {
+    fn build_response(&self, request: &Request, params: &HashMap<String,String>, validation_code: u16) -> Result<Response,u16> {
         let bytes = self.message.clone().into_bytes();
         let mut headers = HashMap::<String, String>::new();
         headers.insert("Content-Length".to_owned(), bytes.len().to_string());
@@ -36,6 +36,6 @@ impl Responder for StaticResponder {
         response.headers = headers;
         let bytes = self.message.clone().into_bytes();
         response.message_body = Some(Box::new(Cursor::new(bytes)));
-        return response;
+        return Ok(response);
     }
 }

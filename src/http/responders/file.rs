@@ -32,7 +32,7 @@ impl FileResponder {
 
 impl Responder for FileResponder {
     // tests if the provided path exists
-    fn validate(&self, request: &Request, params: &HashMap<String,String>) -> bool {
+    fn validate(&self, request: &Request, params: &HashMap<String,String>) -> Result<u16,u16> {
         println!("validating");
         match params.get(&self.path_param) {
             Some(path_string) => {
@@ -48,17 +48,21 @@ impl Responder for FileResponder {
                     Ok(abs_file_path) => {
                         println!("{:?}",abs_file_path);
                         // at the moment we only return files. no directory
-                        return abs_file_path.starts_with(&self.mount_point) && abs_file_path.is_file();
+                        if abs_file_path.starts_with(&self.mount_point) && abs_file_path.is_file() {
+                            return Ok(200);
+                        } else {
+                            return Err(404); // not in mounted directory or not a file
+                        }
                     },
-                    Err(_error) => return false
+                    Err(_error) => return Err(404) // not found or failed to canonicalize
                 }
             },
-            None => return false // no path provided
+            None => return Err(500) // no path provided
         }
     }
 
     // TODO: Currently only using identity encoding
-    fn build_response(&self, request: &Request, params: &HashMap<String,String>) -> Response {
+    fn build_response(&self, request: &Request, params: &HashMap<String,String>, validation_code: u16) -> Result<Response,u16> {
         // get the size of the file
         match params.get(&self.path_param) {
             Some(path_string) => {
@@ -76,21 +80,21 @@ impl Responder for FileResponder {
                                         // build the response
                                         let mut headers = HashMap::<String, String>::new();
                                         headers.insert("Content-Length".to_owned(), size.to_string());
-                                        let mut response = Response::new(200);
+                                        let mut response = Response::new(validation_code);
                                         response.headers = headers;
                                         response.message_body = Some(Box::new(BufReader::new(file)));
-                                        return response;
+                                        return Ok(response);
                                     },
-                                    Err(_error) => return Response::new(500)
+                                    Err(_error) => return Err(500)
                                 }
                             },
-                            Err(_error) => return Response::new(500)
+                            Err(_error) => return Err(500)
                         }
                     },
-                    Err(_error) => return Response::new(500)
+                    Err(_error) => return Err(500)
                 }
             },
-            None => return Response::new(500)
+            None => return Err(500)
         }
     }
 }
