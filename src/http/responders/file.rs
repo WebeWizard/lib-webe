@@ -1,6 +1,6 @@
 use std::boxed::Box;
 use std::collections::HashMap;
-use std::fs::{File};
+use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
 
@@ -11,7 +11,7 @@ use super::Response;
 #[derive(Clone)]
 pub struct FileResponder {
     mount_point: PathBuf,
-    path_param: String // specifies the route parameter that provides file path relative to mount point
+    path_param: String,// specifies the route parameter that provides file path relative to mount point
 }
 
 pub enum FileResponderError {
@@ -27,7 +27,6 @@ impl FileResponder {
             },
             Err(_error) => return Err(FileResponderError::BadPath)
         }
-        
     }
 }
 
