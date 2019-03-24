@@ -21,7 +21,7 @@ impl Response {
     pub fn new(status: u16) -> Response {
         let headers = HashMap::<String,String>::new();
         return Response{
-            status: Status::from_code(200).unwrap(),
+            status: Status::from_code(status).unwrap(),
             headers: headers,
             message_body: None
         };

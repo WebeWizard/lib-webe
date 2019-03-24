@@ -33,7 +33,6 @@ impl FileResponder {
 impl Responder for FileResponder {
     // tests if the provided path exists
     fn validate(&self, request: &Request, params: &HashMap<String,String>) -> Result<u16,u16> {
-        println!("validating");
         match params.get(&self.path_param) {
             Some(path_string) => {
                 // build the full path
@@ -46,7 +45,6 @@ impl Responder for FileResponder {
                 // this also makes sure the file or directory actually exists
                 match file_path.canonicalize() {
                     Ok(abs_file_path) => {
-                        println!("{:?}",abs_file_path);
                         // at the moment we only return files. no directory
                         if abs_file_path.starts_with(&self.mount_point) && abs_file_path.is_file() {
                             return Ok(200);

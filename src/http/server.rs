@@ -40,9 +40,11 @@ impl Server {
         };
     }
 
-    pub fn add_route<T: Responder+'static>(&mut self, route: (String, String), responder: T) {
+    pub fn add_route<T: Responder+'static>(&mut self, mut route: (String, String), responder: T) {
         match Arc::get_mut(&mut self.routes) { // TODO: not sure why this is necessary when already borrowing mut self
             Some(routes) => {
+                // remove leading / if any
+                if !route.1.starts_with('/') { route.1 = "/".to_owned()+route.1.as_str(); }
                 routes.insert(route, Box::new(responder));
             },
             None => {} //TODO: should this return some error if we can't get the mutable ref?
@@ -58,7 +60,12 @@ impl Server {
                 Ok(stream) => {
                     let routes = self.routes.clone();
                     thread::spawn(move || {
-                        Server::process_stream(stream, &routes)
+                        loop {
+                            match Server::process_stream(&stream, &routes) {
+                                Ok(keep_alive) => if !keep_alive { break } 
+                                Err(_) => { break } // server errors should break the connection (start fresh?)
+                            }
+                        }
                     });
                 },
                 Err(error) => return Err(ServerError::ConnectionFailed(error))
@@ -67,16 +74,15 @@ impl Server {
         return Ok(());
     }
 
-    // process a client request and give a result
+    // process a client request, return a bool to keep connection alive
     // TODO: handle these errors better (need to know the real error for logging, whatever)
-    pub fn process_stream(stream: TcpStream, routes: &Arc<HashMap<(String,String),Box<Responder>>>) -> Result<(), ServerError> {
-        // keep alive by default with 5 second timeout
-        match stream.set_read_timeout(Some(Duration::from_secs(5))) {
+    pub fn process_stream(stream: &TcpStream, routes: &Arc<HashMap<(String,String),Box<Responder>>>) -> Result<bool, ServerError> {
+        // keep alive by default with 10 second timeout
+        let mut keep_alive = true;
+        match stream.set_read_timeout(Some(Duration::from_secs(10))) {
             Ok(_) => {
-                println!("set_read_timeout");
-                let keep_alive = true;
                 // get the request from the stream
-                let buf_reader = BufReader::new(&stream);
+                let buf_reader = BufReader::new(stream);
                 match Request::new(buf_reader) {
                     Ok(request) => {
                         println!("Request URI: {:?}",request.uri);
@@ -88,12 +94,13 @@ impl Server {
                         let request_uri_parts: Vec<&str> = request.uri.split('/').collect();
                         let request_uri_length = request_uri_parts.len();
                         let keys: Vec<&(String,String)> = routes.keys().collect();
+                        let mut matched = false;
                         match keys.iter().max_by_key(|key| {
                             // compare method
                             if key.0 != request.method {return 0}
                             let route_uri_parts: Vec<&str> = key.1.split('/').collect();
                             // compare length
-                            if route_uri_parts.len() >= request_uri_length {return 0}
+                            if route_uri_parts.len() > request_uri_length {return 0}
                             // find the one with the most matching parts
                             let mut size = 0;
                             for part in &request_uri_parts {
@@ -104,101 +111,114 @@ impl Server {
                                     break;
                                 }
                             }
+                            if size > 0 {matched = true} // use this to determine if no routes found
                             return size;
                         }) {
                             Some(key) => {
-                                match routes.get(key) {
-                                    Some(responder) => {
-                                        let mut params = HashMap::<String,String>::new();
-                                        let route_uri_parts: Vec<&str> = key.1.split('/').collect();
-                                        let part_length = route_uri_parts.len();
-                                        for i in 0..part_length {
-                                            // if this is the last part of the route
-                                            // and the part is a route param
-                                            // then grab the remaining parts from the request uri
-                                            if route_uri_parts[i].contains('<') {
-                                                let name = route_uri_parts[i].to_owned();
-                                                let value = if i==part_length-1 {
-                                                        request_uri_parts[i..].join("/")
-                                                    } else {
-                                                        request_uri_parts[i].to_owned()
-                                                    };
-                                                println!("Processed part: {} , {}",name,value);
-                                                params.insert(name, value);
+                                if !matched { // no matching routes
+                                    let static_responder = StaticResponder::new(400, String::new());
+                                    match static_responder.build_response(&request, &HashMap::<String,String>::new(), 400) {
+                                        Ok(mut response) => {
+                                            match response.respond(BufWriter::new(&stream)) {
+                                                Ok(()) => {},
+                                                Err(_error) => return Err(ServerError::InternalError)
                                             }
-                                        }
-                                        
-                                        match responder.validate(&request, &params) {
-                                            Ok(validation_code) => {
-                                                match responder.build_response(&request, &params, validation_code) {
-                                                    Ok(mut response) => {
-                                                        match response.respond(BufWriter::new(&stream)) {
-                                                            Ok(()) => {},
-                                                            Err(_error) => return Err(ServerError::InternalError)
-                                                        }
-                                                    },
-                                                    Err(response_code) => {
-                                                        match Status::from_code(response_code) {
-                                                            Some(status) => {
-                                                                let static_responder = StaticResponder::from_status(status);
-                                                                match static_responder.build_response(&request, &params, response_code) {
-                                                                    Ok(mut response) => {
-                                                                        match response.respond(BufWriter::new(&stream)) {
-                                                                            Ok(()) => {},
-                                                                            Err(_error) => return Err(ServerError::InternalError)
-                                                                        }
-                                                                    },
-                                                                    Err(_error) => return Err(ServerError::InternalError)
-                                                                }
-                                                            },
-                                                            None => {
-                                                                let static_responder = StaticResponder::new(response_code, String::new());
-                                                                match static_responder.build_response(&request, &params, response_code) {
-                                                                    Ok(mut response) => {
-                                                                        match response.respond(BufWriter::new(&stream)) {
-                                                                            Ok(()) => {},
-                                                                            Err(_error) => return Err(ServerError::InternalError)
-                                                                        }
-                                                                    },
-                                                                    Err(_error) => return Err(ServerError::InternalError)
+                                        },
+                                        Err(_error) => return Err(ServerError::InternalError)
+                                    }
+                                } else {
+                                    match routes.get(key) {
+                                        Some(responder) => {
+                                            let mut params = HashMap::<String,String>::new();
+                                            let route_uri_parts: Vec<&str> = key.1.split('/').collect();
+                                            let part_length = route_uri_parts.len();
+                                            for i in 0..part_length {
+                                                // if this is the last part of the route
+                                                // and the part is a route param
+                                                // then grab the remaining parts from the request uri
+                                                if route_uri_parts[i].contains('<') {
+                                                    let name = route_uri_parts[i].to_owned();
+                                                    let value = if i==part_length-1 {
+                                                            request_uri_parts[i..].join("/")
+                                                        } else {
+                                                            request_uri_parts[i].to_owned()
+                                                        };
+                                                    params.insert(name, value);
+                                                }
+                                            }
+                                            
+                                            match responder.validate(&request, &params) {
+                                                Ok(validation_code) => {
+                                                    match responder.build_response(&request, &params, validation_code) {
+                                                        Ok(mut response) => {
+                                                            match response.respond(BufWriter::new(&stream)) {
+                                                                Ok(()) => {},
+                                                                Err(_error) => return Err(ServerError::InternalError)
+                                                            }
+                                                        },
+                                                        Err(response_code) => {
+                                                            match Status::from_code(response_code) {
+                                                                Some(status) => {
+                                                                    let static_responder = StaticResponder::from_status(status);
+                                                                    match static_responder.build_response(&request, &params, response_code) {
+                                                                        Ok(mut response) => {
+                                                                            match response.respond(BufWriter::new(&stream)) {
+                                                                                Ok(()) => {},
+                                                                                Err(_error) => return Err(ServerError::InternalError)
+                                                                            }
+                                                                        },
+                                                                        Err(_error) => return Err(ServerError::InternalError)
+                                                                    }
+                                                                },
+                                                                None => {
+                                                                    let static_responder = StaticResponder::new(response_code, String::new());
+                                                                    match static_responder.build_response(&request, &params, response_code) {
+                                                                        Ok(mut response) => {
+                                                                            match response.respond(BufWriter::new(&stream)) {
+                                                                                Ok(()) => {},
+                                                                                Err(_error) => return Err(ServerError::InternalError)
+                                                                            }
+                                                                        },
+                                                                        Err(_error) => return Err(ServerError::InternalError)
+                                                                    }
                                                                 }
                                                             }
-                                                        }
-                                                        
-                                                    }
-                                                }
-                                            },
-                                            Err(validation_code) => {
-                                                match Status::from_code(validation_code) {
-                                                    Some(status) => {
-                                                        let static_responder = StaticResponder::from_status(status);
-                                                        match static_responder.build_response(&request, &params, validation_code) {
-                                                            Ok(mut response) => {
-                                                                match response.respond(BufWriter::new(&stream)) {
-                                                                    Ok(()) => {},
-                                                                    Err(_error) => return Err(ServerError::InternalError)
-                                                                }
-                                                            },
-                                                            Err(_error) => return Err(ServerError::InternalError)
-                                                        }
-                                                    },
-                                                    None => {
-                                                        let static_responder = StaticResponder::new(validation_code, String::new());
-                                                        match static_responder.build_response(&request, &params, validation_code) {
-                                                            Ok(mut response) => {
-                                                                match response.respond(BufWriter::new(&stream)) {
-                                                                    Ok(()) => {},
-                                                                    Err(_error) => return Err(ServerError::InternalError)
-                                                                }
-                                                            },
-                                                            Err(_error) => return Err(ServerError::InternalError)
+                                                            
                                                         }
                                                     }
+                                                },
+                                                Err(validation_code) => {
+                                                    match Status::from_code(validation_code) {
+                                                        Some(status) => {
+                                                            let static_responder = StaticResponder::from_status(status);
+                                                            match static_responder.build_response(&request, &params, validation_code) {
+                                                                Ok(mut response) => {
+                                                                    match response.respond(BufWriter::new(&stream)) {
+                                                                        Ok(()) => {},
+                                                                        Err(_error) => return Err(ServerError::InternalError)
+                                                                    }
+                                                                },
+                                                                Err(_error) => return Err(ServerError::InternalError)
+                                                            }
+                                                        },
+                                                        None => {
+                                                            let static_responder = StaticResponder::new(validation_code, String::new());
+                                                            match static_responder.build_response(&request, &params, validation_code) {
+                                                                Ok(mut response) => {
+                                                                    match response.respond(BufWriter::new(&stream)) {
+                                                                        Ok(()) => {},
+                                                                        Err(_error) => return Err(ServerError::InternalError)
+                                                                    }
+                                                                },
+                                                                Err(_error) => return Err(ServerError::InternalError)
+                                                            }
+                                                        }
+                                                    }
                                                 }
-                                            }
-                                        }                                        
+                                            }                                        
+                                        }
+                                        None => return Err(ServerError::InternalError)
                                     }
-                                    None => return Err(ServerError::InternalError)
                                 }
                             },
                             None => {} //TODO: respond with bad request
@@ -209,6 +229,7 @@ impl Server {
             },
             Err(_) => return Err(ServerError::InternalError)
         }
-        return Ok(());
+        // TODO: keep the connection alive unless the *response* wants to kill it
+        return Ok(keep_alive);
     }
 }

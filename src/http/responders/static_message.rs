@@ -32,7 +32,8 @@ impl Responder for StaticResponder {
         let bytes = self.message.clone().into_bytes();
         let mut headers = HashMap::<String, String>::new();
         headers.insert("Content-Length".to_owned(), bytes.len().to_string());
-        let mut response = Response::new(200);
+        headers.insert("Content-Type".to_owned(), "text/html".to_owned());
+        let mut response = Response::new(validation_code);
         response.headers = headers;
         let bytes = self.message.clone().into_bytes();
         response.message_body = Some(Box::new(Cursor::new(bytes)));
