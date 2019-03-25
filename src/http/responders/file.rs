@@ -32,6 +32,7 @@ impl FileResponder {
 
 impl Responder for FileResponder {
     // tests if the provided path exists
+    // TODO: if path is empty, check for index.htm or index.html
     fn validate(&self, request: &Request, params: &HashMap<String,String>) -> Result<u16,u16> {
         match params.get(&self.path_param) {
             Some(path_string) => {

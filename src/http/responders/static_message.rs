@@ -21,6 +21,11 @@ impl StaticResponder {
     pub fn from_status (status: Status) -> StaticResponder {
         StaticResponder { status_code: status.code, message: status.reason }
     }
+
+    pub fn from_standard_code (status_code: u16) -> StaticResponder {
+        let status = Status::from_standard_code(status_code);
+        return StaticResponder::from_status(status);
+    }
 }
 
 impl Responder for StaticResponder {
