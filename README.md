@@ -1,6 +1,21 @@
-Using the term 'Customer' to refer to the person using the system.
+## HTTP Server - lib-webe::http
+
+#### Server
+The server accepts incomming tcp connections.  From the connection's stream it will read and form requests.
+For the request the server will find the best matching route.  The route will use its provided responder to generate a Response for the request.  The server will then send the response back over the tcp stream.
+
+#### Route
+Has 2 parts:  a tuple of (Method,RouteURI) and a Responder.
+
+#### Responder
+Responder is a trait with two functions: `validate` and `build_response`.  
+`validate` is intended to be a fast way to verify if the request is worth responding to.  
+It returns a Result<u16,u16> where the u16 represents a status code to send to the next operation. Ok(u16) will tell the server to call the responder's `build_response` function and hint to the function what http status is appropriate. Err(u16) will tell the server to call the server's static_message responder which always builds a response with the provided u16 http status code.
+
 
 ## Authentication - lib-webe::auth
+
+Using the term 'Customer' to refer to the person using the system.
 
 ### Account Creation:
 A similar structure to Netflix accounts.  Each account can have multiple Users. Users are essentially just logical separation with no security between Users on the same Account.

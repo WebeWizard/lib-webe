@@ -7,6 +7,7 @@ use super::status::Status;
 
 pub struct Response {
     pub status: Status,
+    pub keep_alive: bool, // flag to tell the server to keep alive after responding
     pub headers: HashMap<String, String>,
     pub message_body: Option<Box<BufRead>>
 }
@@ -22,6 +23,7 @@ impl Response {
         let headers = HashMap::<String,String>::new();
         return Response{
             status: Status::from_standard_code(status),
+            keep_alive: true,
             headers: headers,
             message_body: None
         };
@@ -31,6 +33,7 @@ impl Response {
         let headers = HashMap::<String,String>::new();
         return Response{
             status: status,
+            keep_alive: true,
             headers: headers,
             message_body: None
         };
