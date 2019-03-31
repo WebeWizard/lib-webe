@@ -15,7 +15,7 @@ pub struct Route {
     pub uri: String
 }
 
-type RouteMap = HashMap<Route, Box<Responder + 'static>>;
+type RouteMap = HashMap<Route, Box<Responder>>;
 
 pub struct Server {
     pub ip: Ipv4Addr,
