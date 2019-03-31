@@ -10,7 +10,7 @@ use super::Response;
 #[derive(Clone)]
 pub struct StaticResponder {
     status_code: u16,
-    message: String
+    message: String // TODO: take a reference instead of owning it
 }
 
 impl StaticResponder {
