@@ -1,7 +1,7 @@
 use crate::constants::SECONDS_30_DAYS;
 use crate::schema::webe_sessions;
-use super::account::Account;
-use super::user::User;
+use super::account_model::Account;
+use super::user_model::User;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 

@@ -17,7 +17,7 @@ fn start_server() {
                 Ok(simple_file_responder) => {
                     let route = Route {
                         method: "GET".to_owned(),
-                        uri: "/files/<path>".to_owned()
+                        uri: "/test/<path>".to_owned()
                     };
                      // TODO: may fail if can't get mutable ref to routes arc
                     server.add_route(route,simple_file_responder);

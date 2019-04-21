@@ -1,5 +1,5 @@
 use crate::schema::webe_users;
-use super::account::Account;
+use super::account_model::Account;
 
 use uuid::Uuid;
 

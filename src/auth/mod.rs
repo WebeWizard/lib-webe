@@ -10,6 +10,7 @@
    - one that can only read
 */
 
+pub mod api;
 pub mod models;
 
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -21,9 +22,11 @@ use diesel::result::{DatabaseErrorKind, Error as DieselError};
 
 use super::schema::{webe_accounts, webe_users, webe_sessions};
 use super::schema::webe_accounts::dsl::*;
-use models::account::{Account, AccountError};
-use models::session::{Session, SessionError};
-use models::user::{User, UserError};
+use api::account_api;
+use api::account_api::AccountApiError;
+use models::account_model::{Account, AccountError};
+use models::session_model::{Session, SessionError};
+use models::user_model::{User, UserError};
 
 pub struct WebeAuth {
     pub con_pool: r2d2::Pool<r2d2::ConnectionManager<MysqlConnection>>
@@ -31,7 +34,7 @@ pub struct WebeAuth {
 
 #[derive(Debug)]
 pub enum WebeAuthError {
-    Account(AccountError),
+    AccountApiError(AccountApiError),
     DBConnError(ConnectionError),
     DBError(DieselError),
     LoginError, // generic login error
@@ -60,48 +63,15 @@ impl WebeAuth {
     }
 
     pub fn create_account(&self, user_name: String, new_email: String, password: String) -> Result<Account,WebeAuthError> {
-        // create the new account
-        match Account::new(new_email, password) {
-            Ok(new_account) => {
-                // attempt to insert new account into database
-                match self.con_pool.get() {
-                    Ok(connection) => {
-                        match diesel::insert_into(webe_accounts::table)
-                            .values(&new_account)
-                            .execute(&connection) {
-                                Ok(_) => {
-                                    match User::new(&new_account.id, user_name) {
-                                        Ok(new_user) => {
-                                            // attempt to insert default user into database
-                                            match diesel::insert_into(webe_users::table)
-                                                .values(&new_user)
-                                                .execute(&connection) {
-                                                    Ok(_) => return Ok(new_account),
-                                                    Err(err) => return Err(WebeAuthError::DBError(err))
-                                            }
-                                        },
-                                        Err(err) => return Err(WebeAuthError::User(err))
-                                    }
-                                },
-                                Err(err) => {
-                                    // check for unique constraint (currently only on PK and email)
-                                    match err {
-                                        DieselError::DatabaseError(dberr, _) => {
-                                            match dberr {
-                                                DatabaseErrorKind::UniqueViolation =>
-                                                    return Err(WebeAuthError::Account(AccountError::AlreadyExists)),
-                                                _ => return Err(WebeAuthError::DBError(err))
-                                            }
-                                        },
-                                        _ => return Err(WebeAuthError::DBError(err))
-                                    }
-                                }
-                        }
-                    },
-                    Err(err) => return Err(WebeAuthError::PoolError(err))
+        match self.con_pool.get() {
+            Ok(connection) => {
+                // TODO:  vaidate user_name, email, password, etc
+                match account_api::create_account(&connection, user_name, new_email, password) {
+                    Ok(new_account) => return Ok(new_account),
+                    Err(err) => return Err(WebeAuthError::AccountApiError(err))
                 }
             },
-            Err(error) => return Err(WebeAuthError::Account(error))
+            Err(err) => return Err(WebeAuthError::PoolError(err))
         }
     }
     
