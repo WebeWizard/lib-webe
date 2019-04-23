@@ -74,6 +74,31 @@ impl WebeAuth {
             Err(err) => return Err(WebeAuthError::PoolError(err))
         }
     }
+
+    pub fn delete_account(&self, account_id: Vec<u8>) -> Result<(),WebeAuthError> {
+        match self.con_pool.get() {
+            Ok(connection) => {
+                // TODO:  Make sure the requesting Session has permission to delete this account
+                match account_api::delete_account(&connection, &account_id) {
+                    Ok(_) => return Ok(()),
+                    Err(err) => return Err(WebeAuthError::AccountApiError(err))
+                }
+            },
+            Err(err) => return Err(WebeAuthError::PoolError(err))
+        }
+    }
+
+    pub fn select_account_by_email(&self, email_address: &String) -> Result<Account,WebeAuthError> {
+        match self.con_pool.get() {
+            Ok(connection) => {
+                match account_api::find_by_email(&connection, email_address) {
+                    Ok(account) => return Ok(account),
+                    Err(err) => return Err(WebeAuthError::AccountApiError(err))
+                }
+            },
+            Err(err) => return Err(WebeAuthError::PoolError(err))
+        }
+    }
     
     // attempts to update the db session record with a new user and if successful, mutates the session
     pub fn change_user(&self, current_session: &mut Session, user_id: &Vec<u8>) -> Result<(),WebeAuthError> {

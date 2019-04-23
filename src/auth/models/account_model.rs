@@ -12,12 +12,13 @@ use uuid::Uuid;
 #[table_name="webe_accounts"]
 pub struct Account {
   pub id: Vec<u8>, // must be unique
-  email: String, // must be unique
+  pub email: String, // must be unique
   pub secret: String, // TODO: find a way to make these NOT pub
   pub secret_timeout: u32,
   pub verified: bool,
   verify_code: Option<String>, // a random verification code.  Once verified, make it None
   verify_timeout: Option<u32> // once verified, make it None.  seconds since unix epoch
+  // TODO: Add a 'banned' flag
 }
 
 #[derive(Debug)]
@@ -44,7 +45,7 @@ impl Account {
       Ok(hash) => {
         return Ok(Account{
           id: Uuid::new_v4().as_bytes().to_vec(),
-          email: email,
+          email: email.to_lowercase(), // force lowercase
           secret: hash,
           secret_timeout: new_timeout,
           verified: false,
