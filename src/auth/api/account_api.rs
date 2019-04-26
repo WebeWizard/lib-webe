@@ -8,6 +8,8 @@ use super::schema::webe_accounts::dsl::*;
 use super::account_model::{Account, AccountError};
 use super::user_model::{User, UserError};
 
+use super::utility;
+
 #[derive(Debug)]
 pub enum AccountApiError {
     AlreadyExists, // account with given email address already exists
@@ -69,6 +71,25 @@ where T: diesel::Connection<Backend = diesel::mysql::Mysql> // TODO: make this b
     match webe_accounts.filter(email.eq(email_address)).first(connection) {
         Ok(account) => return Ok(account),
         Err(err) => return Err(AccountApiError::DBError(err))
+    }
+}
+
+// TODO:  be careful that this only gets called if account is not already
+pub fn reset_verification<T> (connection: &T, account_id: &Vec<u8>) -> Result<(),AccountApiError>
+where T: diesel::Connection<Backend = diesel::mysql::Mysql>
+{
+    match utility::new_verify_code() {
+      Ok(new_code) => {
+          match diesel::update(webe_accounts.find(account_id))
+            .set((
+                verify_code.eq(new_code.0),
+                verify_timeout.eq(new_code.1))
+            ).execute(connection) {
+                Ok(_) => return Ok(()),
+                Err(err) => return Err(AccountApiError::DBError(err))
+            }
+      },
+      Err(err) => return Err(AccountApiError::OtherError)
     }
 }
 

@@ -1,11 +1,7 @@
-use crate::constants::SECONDS_30_DAYS;
 use crate::schema::webe_accounts;
-
-use std::time::{SystemTime, UNIX_EPOCH};
+use super::utility;
 
 use bcrypt::DEFAULT_COST;
-use rand::{thread_rng, Rng};
-use rand::distributions::Alphanumeric;
 use uuid::Uuid;
 
 #[derive(Debug, Identifiable, Queryable, Insertable)]
@@ -23,40 +19,32 @@ pub struct Account {
 
 #[derive(Debug)]
 pub enum AccountError {
-  InvalidEmail, // email address does not meet validation standards
-  InvalidPassword, // password does not meet validation standards
-  AlreadyExists, // account with given email address already exists
-  VerifyExpired, // Verifiction code has expired
-  VerifyFailed, // Verification attempt failed.
-  DBError, // TODO: use diesel(?) error type here
+  BadHash,
   OtherError
 }
 
 impl Account {
   pub fn new (email: String, password: String) -> Result<Account,AccountError> {
-    // TODO: Verify email address looks legit, or "not_valid_email" error.
-    // TODO: Verify Password, or "password_not_valid" error.
-    let new_timeout: u32 = match SystemTime::now().duration_since(UNIX_EPOCH) {
-      Ok(n) => n.as_secs() as u32 + SECONDS_30_DAYS,
-      Err(_) => return Err(AccountError::OtherError)
-    };
-    // Compute Secret
-    match bcrypt::hash(password, DEFAULT_COST) {
-      Ok(hash) => {
-        return Ok(Account{
-          id: Uuid::new_v4().as_bytes().to_vec(),
-          email: email.to_lowercase(), // force lowercase
-          secret: hash,
-          secret_timeout: new_timeout,
-          verified: false,
-          verify_code: Some(thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(30)
-            .collect()),
-          verify_timeout: Some(new_timeout)
-        });
-      }
-      _ => return Err(AccountError::InvalidPassword)
-    }    
+    // generate new verification code
+    match utility::new_verify_code() {
+      Ok(new_code) => {
+        // Compute Secret
+        match bcrypt::hash(password, DEFAULT_COST) {
+          Ok(hash) => {
+            return Ok(Account{
+              id: Uuid::new_v4().as_bytes().to_vec(),
+              email: email.to_lowercase(), // force lowercase
+              secret: hash,
+              secret_timeout: new_code.1,
+              verified: false,
+              verify_code: Some(new_code.0),
+              verify_timeout: Some(new_code.1)
+            });
+          }
+          _ => return Err(AccountError::BadHash)
+        }    
+      },
+      Err(err) => return Err(AccountError::OtherError)
+    }
   }
 }

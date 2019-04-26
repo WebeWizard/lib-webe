@@ -13,6 +13,8 @@
 pub mod api;
 pub mod models;
 
+pub mod utility;
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use diesel::prelude::*;
@@ -49,7 +51,7 @@ pub enum WebeAuthError {
 }
 
 impl WebeAuth {
-    pub fn new(database_url: &String) -> Result<WebeAuth,WebeAuthError> {
+    pub fn new (database_url: &String) -> Result<WebeAuth,WebeAuthError> {
         let connection_manager = ConnectionManager::new(database_url.as_str());
         // build the connection pool
         match Pool::builder()
@@ -62,7 +64,7 @@ impl WebeAuth {
         }
     }
 
-    pub fn create_account(&self, user_name: String, new_email: String, password: String) -> Result<Account,WebeAuthError> {
+    pub fn create_account (&self, user_name: String, new_email: String, password: String) -> Result<Account,WebeAuthError> {
         match self.con_pool.get() {
             Ok(connection) => {
                 // TODO:  vaidate user_name, email, password, etc
@@ -75,7 +77,20 @@ impl WebeAuth {
         }
     }
 
-    pub fn delete_account(&self, account_id: Vec<u8>) -> Result<(),WebeAuthError> {
+    pub fn reset_verification (&self, account_id: &Vec<u8>) -> Result<(),WebeAuthError> {
+        match self.con_pool.get() {
+            Ok(connection) => {
+                // TODO:  test to see if account is already verified
+                match account_api::reset_verification(&connection, &account_id) {
+                    Ok(_) => return Ok(()),
+                    Err(err) => return Err(WebeAuthError::AccountApiError(err))
+                }
+            },
+            Err(err) => return Err(WebeAuthError::PoolError(err))
+        }
+    }
+
+    pub fn delete_account (&self, account_id: &Vec<u8>) -> Result<(),WebeAuthError> {
         match self.con_pool.get() {
             Ok(connection) => {
                 // TODO:  Make sure the requesting Session has permission to delete this account
@@ -88,7 +103,7 @@ impl WebeAuth {
         }
     }
 
-    pub fn select_account_by_email(&self, email_address: &String) -> Result<Account,WebeAuthError> {
+    pub fn select_account_by_email (&self, email_address: &String) -> Result<Account,WebeAuthError> {
         match self.con_pool.get() {
             Ok(connection) => {
                 match account_api::find_by_email(&connection, email_address) {
@@ -101,7 +116,7 @@ impl WebeAuth {
     }
     
     // attempts to update the db session record with a new user and if successful, mutates the session
-    pub fn change_user(&self, current_session: &mut Session, user_id: &Vec<u8>) -> Result<(),WebeAuthError> {
+    pub fn change_user (&self, current_session: &mut Session, user_id: &Vec<u8>) -> Result<(),WebeAuthError> {
         match self.con_pool.get() {
             Ok(connection) => {
                 match diesel::update(current_session as &Session) // diesel doesn't like mutable references
@@ -119,7 +134,7 @@ impl WebeAuth {
         }
     }
         
-    pub fn login(&self, login_email: String, pass: String, user_id: &Vec<u8>) -> Result<Session,WebeAuthError> {
+    pub fn login (&self, login_email: String, pass: String, user_id: &Vec<u8>) -> Result<Session,WebeAuthError> {
         // fetch account from db using email
         match self.con_pool.get() {
             Ok(connection) => {
