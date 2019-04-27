@@ -7,9 +7,9 @@ use uuid::Uuid;
 #[belongs_to(Account, foreign_key="account_id")]
 #[table_name="webe_users"]
 pub struct User {
-  id: Vec<u8>,
+  pub id: Vec<u8>,
   account_id: Vec<u8>,
-  name: String
+  pub name: String
 }
 
 #[derive(Debug)]

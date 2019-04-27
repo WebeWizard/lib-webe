@@ -26,6 +26,8 @@ use super::schema::{webe_accounts, webe_users, webe_sessions};
 use super::schema::webe_accounts::dsl::*;
 use api::account_api;
 use api::account_api::AccountApiError;
+use api::user_api;
+use api::user_api::UserApiError;
 use models::account_model::{Account, AccountError};
 use models::session_model::{Session, SessionError};
 use models::user_model::{User, UserError};
@@ -47,7 +49,7 @@ pub enum WebeAuthError {
     SessionNotFound,
     SessionExpired,
     NotVerifiedError,
-    User(UserError)
+    UserApiError(UserApiError)
 }
 
 impl WebeAuth {
@@ -94,7 +96,7 @@ impl WebeAuth {
         match self.con_pool.get() {
             Ok(connection) => {
                 // TODO:  Make sure the requesting Session has permission to delete this account
-                match account_api::delete_account(&connection, &account_id) {
+                match account_api::delete_account(&connection, account_id) {
                     Ok(_) => return Ok(()),
                     Err(err) => return Err(WebeAuthError::AccountApiError(err))
                 }
@@ -103,12 +105,50 @@ impl WebeAuth {
         }
     }
 
-    pub fn select_account_by_email (&self, email_address: &String) -> Result<Account,WebeAuthError> {
+    pub fn get_account_by_email (&self, email_address: &String) -> Result<Account,WebeAuthError> {
         match self.con_pool.get() {
             Ok(connection) => {
                 match account_api::find_by_email(&connection, email_address) {
                     Ok(account) => return Ok(account),
                     Err(err) => return Err(WebeAuthError::AccountApiError(err))
+                }
+            },
+            Err(err) => return Err(WebeAuthError::PoolError(err))
+        }
+    }
+
+    pub fn create_user (&self, acc_id: &Vec<u8>, name: String) -> Result<User,WebeAuthError> {
+        match self.con_pool.get() {
+            Ok(connection) => {
+                // TODO:  vaidate user_name, email, password, etc
+                match user_api::create_user(&connection, acc_id, name) {
+                    Ok(new_user) => return Ok(new_user),
+                    Err(err) => return Err(WebeAuthError::UserApiError(err))
+                }
+            },
+            Err(err) => return Err(WebeAuthError::PoolError(err))
+        }
+    }
+
+    pub fn get_user_by_name (&self, acc_id: &Vec<u8>, name: &String) ->  Result<User,WebeAuthError> {
+        match self.con_pool.get() {
+            Ok(connection) => {
+                match user_api::find_by_name(&connection, acc_id, name) {
+                    Ok(user) => return Ok(user),
+                    Err(err) => return Err(WebeAuthError::UserApiError(err))
+                }
+            },
+            Err(err) => return Err(WebeAuthError::PoolError(err))
+        }
+    }
+
+    pub fn delete_user (&self, user_id: &Vec<u8>) -> Result<(),WebeAuthError> {
+        match self.con_pool.get() {
+            Ok(connection) => {
+                // TODO:  Make sure the requesting Session has permission to delete this account
+                match user_api::delete_user(&connection, user_id) {
+                    Ok(_) => return Ok(()),
+                    Err(err) => return Err(WebeAuthError::UserApiError(err))
                 }
             },
             Err(err) => return Err(WebeAuthError::PoolError(err))
