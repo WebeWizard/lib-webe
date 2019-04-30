@@ -67,3 +67,14 @@ fn user_crud() {
   // delete the account
   auth_manager.delete_account(&account.id).unwrap();
 }
+
+#[test]
+fn session_crud() {
+  // CREATE session from account login
+
+  // READ session, make sure it's still valid
+
+  // UPDATE session with a selected user
+
+  // DELETE the session
+}

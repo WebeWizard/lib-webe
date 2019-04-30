@@ -1,12 +1,10 @@
 use diesel::prelude::*;
-use diesel::r2d2::{ManageConnection, PooledConnection, ConnectionManager};
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
 
-use super::schema::{webe_accounts, webe_users, webe_sessions};
+use super::schema::webe_accounts;
 use super::schema::webe_accounts::dsl::*;
 
 use super::account_model::{Account, AccountError};
-use super::user_model::{User};
 use super::user_api;
 use super::user_api::UserApiError;
 

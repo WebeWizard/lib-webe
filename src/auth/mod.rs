@@ -15,22 +15,20 @@ pub mod models;
 
 pub mod utility;
 
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use diesel::prelude::*;
 use diesel::r2d2;
 use diesel::r2d2::{ConnectionManager, Pool, PoolError};
-use diesel::result::{DatabaseErrorKind, Error as DieselError};
+use diesel::result::Error as DieselError;
 
-use super::schema::{webe_accounts, webe_users, webe_sessions};
-use super::schema::webe_accounts::dsl::*;
 use api::account_api;
 use api::account_api::AccountApiError;
 use api::user_api;
 use api::user_api::UserApiError;
-use models::account_model::{Account, AccountError};
-use models::session_model::{Session, SessionError};
-use models::user_model::{User, UserError};
+use api::session_api;
+use api::session_api::SessionApiError;
+use models::account_model::Account;
+use models::session_model::Session;
+use models::user_model::User;
 
 pub struct WebeAuth {
     pub con_pool: r2d2::Pool<r2d2::ConnectionManager<MysqlConnection>>
@@ -41,14 +39,9 @@ pub enum WebeAuthError {
     AccountApiError(AccountApiError),
     DBConnError(ConnectionError),
     DBError(DieselError),
-    LoginError, // generic login error
     OtherError,
-    PasswordExpired,
     PoolError(PoolError),
-    Session(SessionError),
-    SessionNotFound,
-    SessionExpired,
-    NotVerifiedError,
+    SessionApiError(SessionApiError),
     UserApiError(UserApiError)
 }
 
@@ -154,73 +147,13 @@ impl WebeAuth {
             Err(err) => return Err(WebeAuthError::PoolError(err))
         }
     }
-    
-    // attempts to update the db session record with a new user and if successful, mutates the session
-    pub fn change_user (&self, current_session: &mut Session, user_id: &Vec<u8>) -> Result<(),WebeAuthError> {
-        match self.con_pool.get() {
-            Ok(connection) => {
-                match diesel::update(current_session as &Session) // diesel doesn't like mutable references
-                    .set(webe_sessions::user_id.eq(user_id))
-                    .execute(&connection) {
-                        Ok(1) => { // only 1 record updated is a success
-                            current_session.user_id = Some(user_id.to_vec());
-                            return Ok(());
-                        },
-                        Ok(_) => return Err(WebeAuthError::SessionNotFound),
-                        Err(err) => return Err(WebeAuthError::DBError(err))
-                }
-            },
-            Err(err) => return Err(WebeAuthError::PoolError(err))
-        }
-    }
         
-    pub fn login (&self, login_email: String, pass: String, user_id: &Vec<u8>) -> Result<Session,WebeAuthError> {
-        // fetch account from db using email
+    pub fn login (&self, email_address: String, pass: String) -> Result<Session,WebeAuthError> {
         match self.con_pool.get() {
             Ok(connection) => {
-                match webe_accounts.filter(webe_accounts::email.eq(login_email))
-                    .first::<Account>(&connection) {
-                        Ok(fetched_account) => {
-                            // - verify password and secret with bcrypt
-                            match bcrypt::verify(pass, &fetched_account.secret) {
-                                Ok(verified_result) => {
-                                    if verified_result { // password matches
-                                        // see if password is expired
-                                        match SystemTime::now().duration_since(UNIX_EPOCH) {
-                                            Ok(n) => {
-                                                if fetched_account.secret_timeout < n.as_secs() as u32 {
-                                                    // validate that verified is true
-                                                    if fetched_account.verified {
-                                                        // validate that account owns the desired user_id
-                                                        match User::belonging_to(&fetched_account).find(user_id)
-                                                            .first::<User>(&connection) {
-                                                                Ok(_) => {
-                                                                    match Session::new(user_id) {
-                                                                        Ok(session) => {
-                                                                            // insert new session into db
-                                                                            match diesel::insert_into(webe_sessions::table)
-                                                                              .values(&session)
-                                                                              .execute(&connection) {
-                                                                                  Ok(_) => return Ok(session),
-                                                                                  Err(err) => return Err(WebeAuthError::DBError(err))
-                                                                            }
-                                                                        },
-                                                                        Err(err) => return Err(WebeAuthError::Session(err))
-                                                                    }
-                                                                },
-                                                                Err(err) => return Err(WebeAuthError::DBError(err))
-                                                        }
-                                                    } else { return Err(WebeAuthError::NotVerifiedError); }
-                                                } else { return Err(WebeAuthError::PasswordExpired); }
-                                            },
-                                            Err(_) => return Err(WebeAuthError::OtherError)
-                                        }
-                                    } else { return Err(WebeAuthError::LoginError); }// password doesn't match
-                                },
-                                Err(_) => return Err(WebeAuthError::LoginError) // bcrypt error
-                            }
-                        },
-                        Err(_) => return Err(WebeAuthError::LoginError)
+                match session_api::login(&connection, &email_address, &pass) {
+                    Ok(new_session) => return Ok(new_session),
+                    Err(err) => return Err(WebeAuthError::SessionApiError(err))
                 }
             },
             Err(err) => return Err(WebeAuthError::PoolError(err))
