@@ -30,6 +30,15 @@ where T: diesel::Connection<Backend = diesel::mysql::Mysql> // TODO: make this b
   }
 }
 
+pub fn find<T> (connection: &T, user_id: &Vec<u8>) -> Result<User,UserApiError>
+where T: diesel::Connection<Backend = diesel::mysql::Mysql> // TODO: make this backend generic
+{  
+  match webe_users.find(user_id).first(connection) {
+      Ok(account) => return Ok(account),
+      Err(err) => return Err(UserApiError::DBError(err))
+  }
+}
+
 pub fn find_by_name<T> (connection: &T, acc_id: &Vec<u8>, user_name: &String) -> Result<User,UserApiError>
 where T: diesel::Connection<Backend = diesel::mysql::Mysql> // TODO: make this backend generic
 {  

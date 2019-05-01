@@ -29,6 +29,7 @@ where T: diesel::Connection<Backend = diesel::mysql::Mysql> // TODO: make this b
                 .values(&new_account)
                 .execute(connection) {
                     Ok(_) => {
+                        // TODO: Don't create user with account.  Instead create it after/during account verification
                         match user_api::create_user(connection, &new_account.id, user_name) {
                             Ok(_user) => return Ok(new_account),
                             Err(err) => return Err(AccountApiError::UserApiError(err))
@@ -62,7 +63,7 @@ where T: diesel::Connection<Backend = diesel::mysql::Mysql> // TODO: make this b
     }
 }
 
-// TODO:  be careful that this only gets called if account is not already
+// TODO:  be careful that this only gets called if account is not already verified
 pub fn reset_verification<T> (connection: &T, account_id: &Vec<u8>) -> Result<(),AccountApiError>
 where T: diesel::Connection<Backend = diesel::mysql::Mysql>
 {

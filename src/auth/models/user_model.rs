@@ -8,7 +8,7 @@ use uuid::Uuid;
 #[table_name="webe_users"]
 pub struct User {
   pub id: Vec<u8>,
-  account_id: Vec<u8>,
+  pub account_id: Vec<u8>,
   pub name: String
 }
 

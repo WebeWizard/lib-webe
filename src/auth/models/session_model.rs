@@ -8,14 +8,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 
-#[derive(Clone, Debug, Identifiable, Queryable, Insertable, Associations)]
+#[derive(Debug, Identifiable, Queryable, Insertable, Associations)]
 #[primary_key(token)]
 #[belongs_to(Account, foreign_key="account_id")]
 #[belongs_to(User, foreign_key="user_id")]
 #[table_name="webe_sessions"]
 pub struct Session {
-  token: String,
-  account_id: Vec<u8>,
+  pub token: String,
+  pub account_id: Vec<u8>,
   pub user_id: Option<Vec<u8>>,
   timeout: u32 // based on last time credentials were provided
 }
@@ -42,5 +42,13 @@ impl Session {
       user_id: None,
       timeout: new_timeout
     });
+  }
+
+  // check if the timeout has expired
+  pub fn is_expired (&self) -> Result<bool,SessionError> {
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+      Ok(n) => Ok((n.as_secs() as u32) > self.timeout),
+      Err(_) => return Err(SessionError::OtherError)
+    }
   }
 }

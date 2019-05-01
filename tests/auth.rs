@@ -41,11 +41,11 @@ fn account_crud() {
 
 #[test]
 fn user_crud() {
-  // create an account for the users to live under
   dotenv::dotenv().unwrap();
   let database_url = std::env::var("DATABASE_URL").unwrap();
   let auth_manager: WebeAuth = WebeAuth::new(&database_url).unwrap();
-
+  
+  // create an account for the users to live under
   let account = auth_manager.create_account(
     "WebeWizard".to_owned(),
     "WebeWizardUserTest@gmail.com".to_owned(),
@@ -63,18 +63,36 @@ fn user_crud() {
 
   // DELETE it
   auth_manager.delete_user(&new_user.id).unwrap();
-
-  // delete the account
   auth_manager.delete_account(&account.id).unwrap();
 }
 
 #[test]
 fn session_crud() {
-  // CREATE session from account login
+  dotenv::dotenv().unwrap();
+  let database_url = std::env::var("DATABASE_URL").unwrap();
+  let auth_manager: WebeAuth = WebeAuth::new(&database_url).unwrap();
 
-  // READ session, make sure it's still valid
+  let email = "WebeWizardSessionTest@gmail.com";
+  
+  // CREATE session from account login
+  let account = auth_manager.create_account(
+    "WebeWizard".to_owned(),
+    email.to_owned(),
+    "test123".to_owned()
+  ).unwrap();
+
+  let session = auth_manager.login(&account.email, &"test123".to_owned()).unwrap();
+  // TODO: need to verify account
+
+  // TODO: READ session, make sure it's still valid
+  
 
   // UPDATE session with a selected user
+  let user = auth_manager.get_user_by_name(&account.id, &"WebeWizard".to_owned()).unwrap();
+  auth_manager.change_user(&session.token, &user.id).unwrap();
 
   // DELETE the session
+  auth_manager.delete_session(&session.token).unwrap();
+  auth_manager.delete_account(&account.id).unwrap();
+
 }
