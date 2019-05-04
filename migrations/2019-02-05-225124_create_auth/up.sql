@@ -26,7 +26,7 @@ CREATE TABLE webe_users (
 );
 
 CREATE TABLE webe_sessions (
-  token CHAR(20) NOT NULL PRIMARY KEY,
+  token CHAR(30) NOT NULL PRIMARY KEY, /* TODO: 30 is arbitrary, any reason to change it? */
   account_id BINARY(16) NOT NULL,
   user_id BINARY(16),
   timeout INT UNSIGNED NOT NULL, /* Seconds since UNIX EPOCH */

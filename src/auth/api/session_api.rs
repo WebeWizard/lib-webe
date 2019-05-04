@@ -50,7 +50,7 @@ where T: diesel::Connection<Backend = diesel::mysql::Mysql> // TODO: make this b
                             // check to see if the secret has expired
                             match SystemTime::now().duration_since(UNIX_EPOCH) {
                                 Ok(n) => {
-                                    if fetched_account.secret_timeout < n.as_secs() as u32 {
+                                    if fetched_account.secret_timeout > n.as_secs() as u32 {
                                         return create_session(connection, &fetched_account.id);
                                     } else {return Err(SessionApiError::SecretExpired)}
                                 },

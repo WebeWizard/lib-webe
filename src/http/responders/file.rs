@@ -33,7 +33,7 @@ impl FileResponder {
 impl Responder for FileResponder {
     // tests if the provided path exists
     // TODO: if path is empty, check for index.htm or index.html
-    fn validate(&self, request: &Request, params: &HashMap<String,String>) -> Result<u16,u16> {
+    fn validate(&self, _request: &Request, params: &HashMap<String,String>) -> Result<u16,u16> {
         match params.get(&self.path_param) {
             Some(path_string) => {
                 // build the full path
@@ -61,7 +61,7 @@ impl Responder for FileResponder {
     }
 
     // TODO: Currently only using identity encoding
-    fn build_response(&self, request: &Request, params: &HashMap<String,String>, validation_code: u16) -> Result<Response,u16> {
+    fn build_response(&self, _request: &Request, params: &HashMap<String,String>, validation_code: u16) -> Result<Response,u16> {
         // get the size of the file
         match params.get(&self.path_param) {
             Some(path_string) => {

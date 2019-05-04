@@ -74,6 +74,19 @@ impl WebeAuth {
         }
     }
 
+    pub fn verify_account (&self, code: &String) -> Result<(),WebeAuthError> {
+        match self.con_pool.get() {
+            Ok(connection) => {
+                // TODO:  test to see if account is already verified
+                match account_api::verify(&connection, code) {
+                    Ok(_) => return Ok(()),
+                    Err(err) => return Err(WebeAuthError::AccountApiError(err))
+                }
+            },
+            Err(err) => return Err(WebeAuthError::PoolError(err))
+        }
+    }
+
     pub fn reset_verification (&self, account_id: &Vec<u8>) -> Result<(),WebeAuthError> {
         match self.con_pool.get() {
             Ok(connection) => {
@@ -154,6 +167,18 @@ impl WebeAuth {
         match self.con_pool.get() {
             Ok(connection) => {
                 match session_api::login(&connection, &email_address, &pass) {
+                    Ok(new_session) => return Ok(new_session),
+                    Err(err) => return Err(WebeAuthError::SessionApiError(err))
+                }
+            },
+            Err(err) => return Err(WebeAuthError::PoolError(err))
+        }
+    }
+
+    pub fn get_session (&self, session_token: &String) -> Result<Session,WebeAuthError> {
+        match self.con_pool.get() {
+            Ok(connection) => {
+                match session_api::find(&connection, &session_token) {
                     Ok(new_session) => return Ok(new_session),
                     Err(err) => return Err(WebeAuthError::SessionApiError(err))
                 }

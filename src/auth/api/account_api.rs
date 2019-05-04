@@ -16,7 +16,17 @@ pub enum AccountApiError {
     AccountError(AccountError), // errors from Account model
     DBError(DieselError), // errors from interacting with database
     OtherError,
-    UserApiError(UserApiError)
+    UserApiError(UserApiError),
+    BadVerifyCode
+}
+
+pub fn find<T> (connection: &T, account_id: &Vec<u8>) -> Result<Account,AccountApiError>
+where T: diesel::Connection<Backend = diesel::mysql::Mysql> // TODO: make this backend generic
+{
+    match webe_accounts::table.find(account_id).first(connection) {
+        Ok(account) => return Ok(account),
+        Err(err) => return Err(AccountApiError::DBError(err))
+    }
 }
 
 pub fn create_account<T> (connection: &T, user_name: String, new_email: String, password: String) -> Result<Account,AccountApiError>
@@ -63,6 +73,25 @@ where T: diesel::Connection<Backend = diesel::mysql::Mysql> // TODO: make this b
     }
 }
 
+pub fn verify<T> (connection: &T, code: &String) -> Result<(),AccountApiError>
+where T: diesel::Connection<Backend = diesel::mysql::Mysql>
+{
+    match diesel::update(webe_accounts.filter(verify_code.eq(code)))
+        .set((
+            verified.eq(true),
+            verify_code.eq(None as Option<String>),
+            verify_timeout.eq(None as Option<u32>)
+        ))
+        .execute(connection) {
+            Ok(update_count) => {
+                // Note: assuming that no 2 accounts will have the same verify code
+                if update_count == 0 {return Err(AccountApiError::BadVerifyCode)}
+                else {return Ok(())}
+            }
+            Err(err) => return Err(AccountApiError::DBError(err))
+        }
+}
+
 // TODO:  be careful that this only gets called if account is not already verified
 pub fn reset_verification<T> (connection: &T, account_id: &Vec<u8>) -> Result<(),AccountApiError>
 where T: diesel::Connection<Backend = diesel::mysql::Mysql>
@@ -78,7 +107,7 @@ where T: diesel::Connection<Backend = diesel::mysql::Mysql>
                 Err(err) => return Err(AccountApiError::DBError(err))
             }
       },
-      Err(err) => return Err(AccountApiError::OtherError)
+      Err(_err) => return Err(AccountApiError::OtherError)
     }
 }
 

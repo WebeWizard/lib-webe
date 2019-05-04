@@ -12,7 +12,7 @@ pub struct Account {
   pub secret: String, // TODO: find a way to make these NOT pub
   pub secret_timeout: u32,
   pub verified: bool,
-  verify_code: Option<String>, // a random verification code.  Once verified, make it None
+  pub verify_code: Option<String>, // a random verification code.  Once verified, make it None
   verify_timeout: Option<u32> // once verified, make it None.  seconds since unix epoch
   // TODO: Add a 'banned' flag
 }
@@ -44,7 +44,7 @@ impl Account {
           _ => return Err(AccountError::BadHash)
         }    
       },
-      Err(err) => return Err(AccountError::OtherError)
+      Err(_err) => return Err(AccountError::OtherError)
     }
   }
 }

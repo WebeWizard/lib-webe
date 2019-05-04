@@ -29,11 +29,11 @@ impl StaticResponder {
 }
 
 impl Responder for StaticResponder {
-    fn validate(&self, request: &Request, params: &HashMap<String,String>) -> Result<u16,u16> {
+    fn validate(&self, _request: &Request, _params: &HashMap<String,String>) -> Result<u16,u16> {
         Ok(200)
     }
 
-    fn build_response(&self, request: &Request, params: &HashMap<String,String>, validation_code: u16) -> Result<Response,u16> {
+    fn build_response(&self, _request: &Request, _params: &HashMap<String,String>, validation_code: u16) -> Result<Response,u16> {
         let bytes = self.message.clone().into_bytes();
         let mut headers = HashMap::<String, String>::new();
         headers.insert("Content-Length".to_owned(), bytes.len().to_string());
