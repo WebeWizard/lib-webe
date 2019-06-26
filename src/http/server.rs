@@ -64,6 +64,7 @@ impl Server {
   pub fn start(&self) -> Result<(), ServerError> {
     println!("starting the server");
     for stream in self.listener.incoming() {
+      println!("NEW CONNECTION");
       match stream {
         Ok(stream) => {
           let routes = self.routes.clone();
