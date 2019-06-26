@@ -1,18 +1,5 @@
 use std::io::{BufRead, Error, Read};
 
-// In the following example, three chunks of length 4, 5 and 14 (hexadecimal "E") are shown. The chunk size is transferred as a hexadecimal number followed by \r\n as a line separator, followed by a chunk of data of the given size.
-
-// 4\r\n
-// Wiki\r\n
-// 5\r\n
-// pedia\r\n
-// E\r\n
-//  in\r\n
-// \r\n
-// chunks.\r\n
-// 0\r\n
-// \r\n
-
 pub struct ChunkedDecoder<B: BufRead> {
   finished: bool,
   cur_chunk_size: usize,
@@ -94,6 +81,19 @@ impl<B: BufRead> Read for ChunkedDecoder<B> {
     }
   }
 }
+
+// In the following example, three chunks of length 4, 5 and 14 (hexadecimal "E") are shown. The chunk size is transferred as a hexadecimal number followed by \r\n as a line separator, followed by a chunk of data of the given size.
+
+// 4\r\n
+// Wiki\r\n
+// 5\r\n
+// pedia\r\n
+// E\r\n
+//  in\r\n
+// \r\n
+// chunks.\r\n
+// 0\r\n
+// \r\n
 
 #[test]
 fn chunked_decoder() {
