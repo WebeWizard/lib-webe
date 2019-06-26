@@ -2,7 +2,7 @@ use std::io::{BufRead, BufWriter, Write};
 use std::collections::HashMap;
 use std::net::TcpStream;
 
-use super::constants::RUST_BUFFER_SIZE;
+use crate::constants::WEBE_BUFFER_SIZE;
 use super::status::Status;
 
 pub struct Response {
@@ -63,7 +63,7 @@ impl Response {
                     Ok(_) => {
                         // iterate through message_body until it's empty
                         // TODO: does fiddling with the buffer size help performance?
-                        let mut buf = [0u8; RUST_BUFFER_SIZE];
+                        let mut buf = [0u8; WEBE_BUFFER_SIZE];
                         loop {
                             match body_reader.read(&mut buf) {
                                 Ok(0) => break,
