@@ -1,4 +1,5 @@
-use std::io::{BufRead, Error, Read};
+const NEW_LINE: [u8; 2] = [b'\r', b'\n'];
+use std::io::{BufRead, Error, Read, Write};
 
 pub struct ChunkedDecoder<B: BufRead> {
   finished: bool,
@@ -21,23 +22,15 @@ impl<B: BufRead> ChunkedDecoder<B> {
 impl<B: BufRead> Read for ChunkedDecoder<B> {
   fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
     if self.finished {
-      // already finished with all chunks
-      return Ok(0);
+      return Ok(0); // already finished with all chunks
     }
     if self.cur_chunk_size == 0 && self.cur_chunk_pos == 0 {
       // start of chunk - read in the new chunk size
       let mut chunk_size_line = String::new();
       match self.inner.read_line(&mut chunk_size_line) {
-        Ok(_size) => {
-          // pop off the ending new line chars
-          if chunk_size_line.as_bytes().last() == Some(&b'\n') {
-            chunk_size_line.pop();
-          }
-          if chunk_size_line.as_bytes().last() == Some(&b'\r') {
-            chunk_size_line.pop();
-          }
+        Ok(size) => {
           // parse chunk size from hex string
-          match usize::from_str_radix(chunk_size_line.as_str(), 16) {
+          match usize::from_str_radix(&chunk_size_line[..(size - 2)], 16) {
             Ok(chunk_size) => {
               if chunk_size == 0 {
                 // completely finished with all chunks
@@ -56,7 +49,7 @@ impl<B: BufRead> Read for ChunkedDecoder<B> {
     // read from remaining chunk data
     let limit = std::cmp::min(
       self.cur_chunk_size - self.cur_chunk_pos, // read the rest of the current chunk
-      buf.len(),                                // fill the rest of the buffer
+      buf.len(),                                // or, fill the rest of the buffer
     );
     let mut take = self.inner.by_ref().take(limit as u64);
     match take.read(buf) {
@@ -65,9 +58,8 @@ impl<B: BufRead> Read for ChunkedDecoder<B> {
         if self.cur_chunk_pos == self.cur_chunk_size {
           // at the end of the current chunk
           // trash the ending new line chars
-          let mut trash = String::with_capacity(2);
-          match self.inner.read_line(&mut trash) {
-            Ok(_size) => {
+          match self.inner.read_exact(&mut NEW_LINE) {
+            Ok(()) => {
               // reset self
               self.cur_chunk_pos = 0;
               self.cur_chunk_size = 0;
@@ -79,6 +71,59 @@ impl<B: BufRead> Read for ChunkedDecoder<B> {
       }
       Err(error) => return Err(error),
     }
+  }
+}
+
+pub struct ChunkedEncoder<W> {
+  finished: bool,
+  inner: W,
+}
+
+impl<W: Write> ChunkedEncoder<W> {
+  pub fn new(inner: W) -> ChunkedEncoder<W> {
+    ChunkedEncoder {
+      finished: false,
+      inner: inner,
+    }
+  }
+}
+
+impl<W: Write> Write for ChunkedEncoder<W> {
+  fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
+    // NOTE:  it may be a good idea to not 'finish' the writer until a finish() method is called.
+    // ----- in case whatever is calling this write is just naively passing data from another source.
+    // if writer is finished, return 0
+    if self.finished {
+      return Ok(0);
+    }
+    // if length of buf is 0, mark the writer as finished
+    let hex_len_line = format!("{:X}\r\n", buf.len());
+    match self.inner.write_all(&hex_len_line.as_bytes()) {
+      Ok(()) => {
+        // write the chunk data
+        match self.inner.write_all(buf) {
+          Ok(()) => {
+            // write the chunk newline
+            match self.inner.write_all(b"\r\n") {
+              Ok(()) => {
+                // if buf is empty, then mark writer as finished
+                if buf.len() == 0 {
+                  self.finished = true;
+                }
+                return Ok(hex_len_line.len() + buf.len() + 2);
+              }
+              Err(error) => return Err(error),
+            }
+          }
+          Err(error) => return Err(error),
+        }
+      }
+      Err(error) => return Err(error),
+    }
+  }
+
+  fn flush(&mut self) -> Result<(), Error> {
+    return self.inner.flush();
   }
 }
 
@@ -106,4 +151,18 @@ fn chunked_decoder() {
   let mut decoded = String::new();
   buf_chunk_reader.read_to_string(&mut decoded).unwrap();
   assert_eq!(decoded, "Wikipedia in\r\n\r\nchunks.".to_owned());
+}
+
+#[test]
+fn chunked_encoder() {
+  let buf = Vec::new();
+  let mut chunked_writer = ChunkedEncoder::new(buf);
+  chunked_writer.write(b"Wiki").unwrap();
+  chunked_writer.write(b"pedia").unwrap();
+  chunked_writer.write(b" in\r\n\r\nchunks.").unwrap();
+  chunked_writer.write(b"").unwrap(); // ending chunk
+  assert_eq!(
+    &chunked_writer.inner.as_slice(),
+    &"4\r\nWiki\r\n5\r\npedia\r\nE\r\n in\r\n\r\nchunks.\r\n0\r\n\r\n".as_bytes()
+  );
 }
