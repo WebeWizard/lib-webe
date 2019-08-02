@@ -3,6 +3,7 @@ extern crate diesel;
 extern crate rand;
 extern crate serde;
 extern crate uuid;
+extern crate crossbeam_utils;
 
 pub mod auth;
 pub mod constants;

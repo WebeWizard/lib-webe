@@ -6,12 +6,12 @@ use limit_read::LimitRead;
 
 use crate::constants::{MAX_HEADER_SIZE, MAX_REQUEST_SIZE};
 
-pub struct Request {
+pub struct Request<'r> {
   pub size: usize,
   pub method: String,
   pub uri: String,
   pub headers: HashMap<String, String>,
-  pub message_body: Option<Box<BufRead>>,
+  pub message_body: Option<Box<BufRead+'r>>,
 }
 
 pub enum RequestError {
@@ -20,8 +20,8 @@ pub enum RequestError {
   MaxRequestSizeError, // request is too large
 }
 
-impl Request {
-  pub fn new(mut buf_reader: BufReader<&TcpStream>) -> Result<Request, RequestError> {
+impl<'r> Request<'r> {
+  pub fn new(buf_reader: &mut BufReader<&TcpStream>) -> Result<Request<'r>, RequestError> {
     //read in the first line.  Split it into Method and URI
     let mut line = String::new();
     match buf_reader.read_line_lim(&mut line, &MAX_HEADER_SIZE) {
@@ -41,7 +41,7 @@ impl Request {
                 for line in lines_iter {
                   match line {
                     Ok(header) => {
-                      request_size += header.len() + 1; // technically we don't know the size of the line terminator, assume \n
+                      request_size += header.len() + 2; // technically we don't know the size of the line terminator, assume \r\n
                       if request_size >= MAX_REQUEST_SIZE {
                         return Err(RequestError::MaxRequestSizeError);
                       }
@@ -57,8 +57,10 @@ impl Request {
                             match header_iter.next() {
                               // get header value
                               Some(header_value) => {
-                                headers
-                                  .insert(header_name.to_string(), header_value.trim().to_string());
+                                headers.insert(
+                                  header_name.to_string().to_lowercase(),
+                                  header_value.trim().to_string(),
+                                );
                               }
                               None => return Err(RequestError::ReadError), // expected header value
                             }
@@ -105,5 +107,9 @@ impl Request {
         }
       }
     }
+  }
+
+  pub fn set_message_body(&mut self, message_body: Option<Box<BufRead+'r>>) {
+    self.message_body = message_body;
   }
 }
