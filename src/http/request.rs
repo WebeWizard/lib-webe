@@ -16,6 +16,7 @@ pub struct Request<'r> {
 
 pub enum RequestError {
   ReadError,           // error reading from stream
+  DeserializeError,    // failed to turn the request data into anything meaningful
   MaxHeaderSizeError,  // individual header is too large
   MaxRequestSizeError, // request is too large
 }
