@@ -11,7 +11,7 @@ pub struct Request<'r> {
   pub method: String,
   pub uri: String,
   pub headers: HashMap<String, String>,
-  pub message_body: Option<Box<BufRead+'r>>,
+  pub message_body: Option<Box<dyn BufRead + 'r>>,
 }
 
 pub enum RequestError {
@@ -110,7 +110,7 @@ impl<'r> Request<'r> {
     }
   }
 
-  pub fn set_message_body(&mut self, message_body: Option<Box<BufRead+'r>>) {
+  pub fn set_message_body(&mut self, message_body: Option<Box<dyn BufRead + 'r>>) {
     self.message_body = message_body;
   }
 }

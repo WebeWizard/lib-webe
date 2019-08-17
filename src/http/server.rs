@@ -16,7 +16,7 @@ pub struct Route {
   pub uri: String,
 }
 
-type RouteMap<'r> = HashMap<Route, Box<'r+Responder>>;
+type RouteMap<'r> = HashMap<Route, Box<dyn Responder + 'r>>;
 
 pub struct Server<'r> {
   pub ip: Ipv4Addr,
@@ -41,14 +41,14 @@ impl<'r> Server<'r> {
           ip: ip.clone(),
           port: port.clone(),
           listener: listener,
-          routes: Arc::new(HashMap::<Route, Box<'r+Responder>>::new()),
+          routes: Arc::new(HashMap::<Route, Box<dyn Responder + 'r>>::new()),
         });
       }
       Err(error) => return Err(ServerError::BindError(error)),
     };
   }
 
-  pub fn add_route<T: 'r+Responder>(&mut self, mut route: Route, responder: T) {
+  pub fn add_route<T: 'r + Responder>(&mut self, mut route: Route, responder: T) {
     match Arc::get_mut(&mut self.routes) {
       // TODO: not sure why this is necessary when already borrowing mut self
       Some(routes) => {
@@ -132,10 +132,7 @@ fn find_best_route<'a>(request: &Request, routes: &'a Arc<RouteMap>) -> Option<&
 
 // process a client request, return a bool to keep connection alive
 // TODO: handle these errors better (need to know the real error for logging, whatever)
-fn process_stream<'s>(
-  stream: &'s TcpStream,
-  routes: &Arc<RouteMap>,
-) -> Result<(), ServerError> {
+fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(), ServerError> {
   match stream.set_read_timeout(Some(Duration::from_secs(10))) {
     // TODO: set a write timeout before we send response
     Ok(_) => {
@@ -173,7 +170,7 @@ fn process_stream<'s>(
                     }
 
                     // use a trait object because the exact reader type is unknown at compile time
-                    let mut body_reader: Box<BufRead + 's> = Box::new(buf_reader);
+                    let mut body_reader: Box<dyn BufRead + 's> = Box::new(buf_reader);
 
                     // using transfer encodings on the body?
                     match request.headers.get("transfer-encoding") {
@@ -236,11 +233,8 @@ fn process_stream<'s>(
                           Err(response_code) => {
                             let static_responder =
                               StaticResponder::from_standard_code(response_code);
-                            match static_responder.build_response(
-                              &request,
-                              &params,
-                              response_code,
-                            ) {
+                            match static_responder.build_response(&request, &params, response_code)
+                            {
                               Ok(mut response) => {
                                 match response.respond(BufWriter::new(&stream)) {
                                   Ok(()) => {} // keep_alive = true
@@ -253,10 +247,8 @@ fn process_stream<'s>(
                         }
                       }
                       Err(validation_code) => {
-                        let static_responder =
-                          StaticResponder::from_standard_code(validation_code);
-                        match static_responder.build_response(&request, &params, validation_code)
-                        {
+                        let static_responder = StaticResponder::from_standard_code(validation_code);
+                        match static_responder.build_response(&request, &params, validation_code) {
                           Ok(mut response) => {
                             match response.respond(BufWriter::new(&stream)) {
                               Ok(()) => {} // keep-alive = true

@@ -9,7 +9,7 @@ pub struct Response {
   pub status: Status,
   pub keep_alive: bool, // flag to tell the server to keep alive after responding
   pub headers: HashMap<String, String>,
-  pub message_body: Option<Box<BufRead>>,
+  pub message_body: Option<Box<dyn BufRead>>,
 }
 
 pub enum ResponseError {
