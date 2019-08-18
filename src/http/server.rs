@@ -225,7 +225,7 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
 
                     match responder.validate(&request, &params) {
                       Ok(validation_code) => {
-                        match responder.build_response(&request, &params, validation_code) {
+                        match responder.build_response(&mut request, &params, validation_code) {
                           Ok(mut response) => match response.respond(BufWriter::new(&stream)) {
                             Ok(()) => keep_alive = response.keep_alive,
                             Err(_error) => return Err(ServerError::InternalError),
@@ -233,7 +233,7 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                           Err(response_code) => {
                             let static_responder =
                               StaticResponder::from_standard_code(response_code);
-                            match static_responder.build_response(&request, &params, response_code)
+                            match static_responder.build_response(&mut request, &params, response_code)
                             {
                               Ok(mut response) => {
                                 match response.respond(BufWriter::new(&stream)) {
@@ -248,7 +248,7 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                       }
                       Err(validation_code) => {
                         let static_responder = StaticResponder::from_standard_code(validation_code);
-                        match static_responder.build_response(&request, &params, validation_code) {
+                        match static_responder.build_response(&mut request, &params, validation_code) {
                           Ok(mut response) => {
                             match response.respond(BufWriter::new(&stream)) {
                               Ok(()) => {} // keep-alive = true
@@ -266,7 +266,7 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
               None => {
                 let static_responder = StaticResponder::from_standard_code(400);
                 match static_responder.build_response(
-                  &request,
+                  &mut request,
                   &HashMap::<String, String>::new(),
                   400,
                 ) {

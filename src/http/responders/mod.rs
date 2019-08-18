@@ -10,7 +10,9 @@ use super::response::Response;
 pub trait Responder: Send+Sync {
     // tests if the request is worth responding to. Ok(status_code) or Err(status_code)
     fn validate(&self, request: &Request, params: &HashMap<String,String>) -> Result<u16,u16>;
-    // if validate is OK, tries to respond using the supplied status code.
+
+    // NOTE: Request is mutable!  Mostly this is so the message bufreader can be read from.
+    // validation_code is used to hint to the responder what kind of response should be given
     // returns a Response, or a new status code to fall back to.
-    fn build_response(&self, request: &Request, params: &HashMap<String,String>, validation_code: u16) -> Result<Response,u16>;
+    fn build_response(&self, request: &mut Request, params: &HashMap<String,String>, validation_code: u16) -> Result<Response,u16>;
 }

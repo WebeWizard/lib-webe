@@ -64,7 +64,7 @@ impl Responder for FileResponder {
   // TODO: Currently only using identity encoding
   fn build_response(
     &self,
-    _request: &Request,
+    _request: &mut Request,
     params: &HashMap<String, String>,
     validation_code: u16,
   ) -> Result<Response, u16> {
