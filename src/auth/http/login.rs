@@ -1,4 +1,3 @@
-use crate::auth::http::forms::login_form::LoginForm;
 use crate::auth::WebeAuth;
 use crate::http::request::Request;
 use crate::http::responders::static_message::StaticResponder;
@@ -6,6 +5,14 @@ use crate::http::responders::Responder;
 use crate::http::response::Response;
 
 use std::collections::HashMap;
+
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+pub struct LoginForm {
+    pub email: String,
+    pub pass: String,
+}
 
 pub struct LoginResponder<'w> {
   auth_manager: &'w WebeAuth,
@@ -38,8 +45,8 @@ impl<'w> Responder for LoginResponder<'w> {
       match &mut request.message_body {
         Some(body_reader) => {
           match serde_json::from_reader::<_,LoginForm>(body_reader) {
-            Ok(login_form) => {
-              match self.auth_manager.login(&login_form.email, &login_form.pass) {
+            Ok(form) => {
+              match self.auth_manager.login(&form.email, &form.pass) {
                 Ok(session) => {
                   let responder = StaticResponder::new(200, session.token);
                   return responder.build_response(request, params, 200);

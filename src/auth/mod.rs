@@ -62,14 +62,13 @@ impl WebeAuth {
 
   pub fn create_account(
     &self,
-    user_name: String,
     new_email: String,
     password: String,
   ) -> Result<Account, WebeAuthError> {
     match self.con_pool.get() {
       Ok(connection) => {
-        // TODO:  vaidate user_name, email, password, etc
-        match account_api::create_account(&connection, user_name, new_email, password) {
+        // TODO:  validate user_name, email, password, etc
+        match account_api::create_account(&connection, new_email, password) {
           Ok(new_account) => return Ok(new_account),
           Err(err) => return Err(WebeAuthError::AccountApiError(err)),
         }
