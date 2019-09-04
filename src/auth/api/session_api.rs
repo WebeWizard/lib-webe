@@ -120,7 +120,6 @@ where T: diesel::Connection<Backend = diesel::mysql::Mysql> // TODO: make this b
 pub fn delete_session<T> (connection: &T, session_token: &String) -> Result<(),SessionApiError>
 where T: diesel::Connection<Backend = diesel::mysql::Mysql> // TODO: make this backend generic
 {
-    // deleting the account will cascade to all related tables
     match diesel::delete(webe_sessions::table.find(session_token))
         .execute(connection) {
             Ok(_) => return Ok(()),
