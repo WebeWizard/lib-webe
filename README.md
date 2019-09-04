@@ -38,8 +38,7 @@ The user clicks the link
   - Ask the customer to provide their account password.
   - If password is valid, 
     - sets the 'verified' flag on the account to `true`.  
-    - create a new default User
-    - create a new Session for the User.
+    - begin user creation process
 
 ### User Creation:
 Users contain information that identifies the customer using the system.  User records contain details that help customize the experience of using the system.

@@ -1,6 +1,6 @@
 extern crate dotenv;
 
-use lib_webe::auth::http::session_http::LoginResponder;
+use lib_webe::auth::http::login::LoginResponder;
 use lib_webe::auth::WebeAuth;
 use lib_webe::http::server::{Route, Server};
 

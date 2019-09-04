@@ -7,8 +7,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
+use serde::{Serialize};
 
-#[derive(Debug, Identifiable, Queryable, Insertable, Associations)]
+#[derive(Debug, Identifiable, Queryable, Insertable, Associations, Serialize)]
 #[primary_key(token)]
 #[belongs_to(Account, foreign_key="account_id")]
 #[belongs_to(User, foreign_key="user_id")]
