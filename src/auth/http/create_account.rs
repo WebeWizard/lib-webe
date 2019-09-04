@@ -10,8 +10,8 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct CreateAccountForm {
-    pub email: String,
-    pub pass: String,
+  pub email: String,
+  pub pass: String,
 }
 
 pub struct CreateAccountResponder<'w> {
@@ -39,12 +39,12 @@ impl<'w> Responder for CreateAccountResponder<'w> {
     params: &HashMap<String, String>,
     validation_code: u16,
   ) -> Result<Response, u16> {
-    if validation_code != 200 {/* fall down into 400 response */}
-    else {
-      let mut message = String::new();
+    if validation_code != 200 {
+      /* fall down into 400 response */
+    } else {
       match &mut request.message_body {
         Some(body_reader) => {
-          match serde_json::from_reader::<_,CreateAccountForm>(body_reader) {
+          match serde_json::from_reader::<_, CreateAccountForm>(body_reader) {
             Ok(form) => {
               match self.auth_manager.create_account(form.email, form.pass) {
                 Ok(_account) => {
@@ -53,18 +53,21 @@ impl<'w> Responder for CreateAccountResponder<'w> {
                   return static_responder.build_response(request, params, 200);
                 }
                 Err(error) => {
+                  // TODO: using error debug for now
                   // convert the WebeAuth error down into something meaningful
+                  let static_responder = StaticResponder::new(500, format!("{:?}", error));
+                  return static_responder.build_response(request, params, 500);
                 }
               }
             }
-            Err(_error) => {/* fall down into 400 response */}
+            Err(_error) => { /* fall down into 500 response */ }
           }
         }
-        None => {/* fall down into 400 response */}
+        None => { /* fall down into 500 response */ }
       }
     }
     // TODO: Have common code-based responses be constants
-    let static_responder = StaticResponder::from_standard_code(401);
-    return static_responder.build_response(request, params, 401);
+    let static_responder = StaticResponder::from_standard_code(500);
+    return static_responder.build_response(request, params, 500);
   }
 }

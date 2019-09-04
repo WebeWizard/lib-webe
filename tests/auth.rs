@@ -20,7 +20,6 @@ fn account_crud() {
 
   // CREATE the account
   let account = auth_manager.create_account(
-    "WebeWizard".to_owned(),
     email.to_owned(),
     "test123".to_owned()
   ).unwrap();
@@ -55,7 +54,6 @@ fn user_crud() {
   
   // create an account for the users to live under
   let account = auth_manager.create_account(
-    "WebeWizard".to_owned(),
     email.to_owned(),
     "test123".to_owned()
   ).unwrap();
@@ -90,7 +88,6 @@ fn session_crud() {
   
   // CREATE session from account login
   let account = auth_manager.create_account(
-    "WebeWizard".to_owned(),
     email.to_owned(),
     "test123".to_owned()
   ).unwrap();

@@ -10,8 +10,8 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct LoginForm {
-    pub email: String,
-    pub pass: String,
+  pub email: String,
+  pub pass: String,
 }
 
 pub struct LoginResponder<'w> {
@@ -40,24 +40,30 @@ impl<'w> Responder for LoginResponder<'w> {
     params: &HashMap<String, String>,
     validation_code: u16,
   ) -> Result<Response, u16> {
-    if validation_code != 200 {/* fall down into 401 response */}
-    else {
+    if validation_code != 200 {
+      /* fall down into 401 response */
+    } else {
       match &mut request.message_body {
         Some(body_reader) => {
-          match serde_json::from_reader::<_,LoginForm>(body_reader) {
+          match serde_json::from_reader::<_, LoginForm>(body_reader) {
             Ok(form) => {
               match self.auth_manager.login(&form.email, &form.pass) {
                 Ok(session) => {
-                  let responder = StaticResponder::new(200, session.token);
-                  return responder.build_response(request, params, 200);
+                  match serde_json::to_string(&session) {
+                    Ok(message) => {
+                      let responder = StaticResponder::new(200, message);
+                      return responder.build_response(request, params, 200);
+                    }
+                    Err(_error) => { /* fall down into 401 response */ }
+                  }
                 }
-                Err(_error) => {/* fall down into 401 response */}
+                Err(_error) => { /* fall down into 401 response */ }
               }
             }
-            Err(_error) => {/* fall down into 401 response */}
+            Err(_error) => { /* fall down into 401 response */ }
           }
         }
-        None => {/* fall down into 401 response */}
+        None => { /* fall down into 401 response */ }
       }
     }
     // TODO: Have common response code responses be constants
