@@ -5,10 +5,6 @@ pub mod account_api;
 pub mod session_api;
 pub mod user_api;
 
-use crate::schema;
-
 use super::models::account_model;
 use super::models::session_model;
 use super::models::user_model;
-
-use super::utility;

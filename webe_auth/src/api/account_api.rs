@@ -1,12 +1,12 @@
 use diesel::prelude::*;
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
 
-use super::schema::webe_accounts;
-use super::schema::webe_accounts::dsl::*;
+use crate::schema::webe_accounts;
+use crate::schema::webe_accounts::dsl::*;
 
 use super::account_model::{Account, AccountError};
 
-use super::utility;
+use crate::utility;
 
 #[derive(Debug)]
 pub enum AccountApiError {

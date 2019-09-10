@@ -1,8 +1,8 @@
 use diesel::prelude::*;
 use diesel::result::{Error as DieselError};
 
-use super::schema::webe_users;
-use super::schema::webe_users::dsl::*;
+use crate::schema::webe_users;
+use crate::schema::webe_users::dsl::*;
 
 use super::user_model::{User, UserError};
 

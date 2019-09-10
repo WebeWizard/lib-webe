@@ -1,3 +1,10 @@
+#[macro_use]
+extern crate diesel;
+extern crate rand;
+extern crate serde;
+extern crate uuid;
+extern crate webe_web;
+
 /*
   Accounts - used to authenticate a single user
   Users - contains user specific information like name, email, etc.
@@ -11,9 +18,10 @@
 */
 
 pub mod api;
+pub mod constants;
 pub mod http;
 pub mod models;
-
+pub mod schema;
 pub mod utility;
 
 use diesel::prelude::*;

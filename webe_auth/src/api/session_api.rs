@@ -3,8 +3,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use diesel::prelude::*;
 use diesel::result::Error as DieselError;
 
-use super::schema::webe_sessions;
-use super::schema::webe_sessions::dsl::*;
+use crate::schema::webe_sessions;
+use crate::schema::webe_sessions::dsl::*;
 
 use super::session_model::{Session,SessionError};
 use super::account_api;

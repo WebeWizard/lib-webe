@@ -1,8 +1,8 @@
-use crate::auth::WebeAuth;
-use crate::http::request::Request;
-use crate::http::responders::static_message::StaticResponder;
-use crate::http::responders::Responder;
-use crate::http::response::Response;
+use crate::WebeAuth;
+use webe_web::request::Request;
+use webe_web::responders::static_message::StaticResponder;
+use webe_web::responders::Responder;
+use webe_web::response::Response;
 
 use std::collections::HashMap;
 
