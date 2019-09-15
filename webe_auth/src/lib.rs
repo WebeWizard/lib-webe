@@ -56,7 +56,9 @@ pub enum WebeAuthError {
   DBConnError(ConnectionError),
   DBError(DieselError),
   DBPoolError(diesel_r2d2::PoolError),
-  EmailConnError(LettreError),
+  EmailClientError(LettreError),
+  EmailManagerError(LettreError),
+  EmailPoolError(r2d2::Error),
   OtherError,
   SessionApiError(SessionApiError),
   SessionExpired,
@@ -72,18 +74,29 @@ impl WebeAuth {
     match diesel_r2d2::Pool::builder().max_size(10).build(connection_manager) {
       Ok(db_pool) => {
         // build the email connection pool
-        let email_client = SmtpClient::new_simple("smtp.gmail.com").or
-          .credentials(("jleis@webewizard.com", "JLeis@2406").into_credentials());
-        let email_manager = SmtpConnectionManager::new(email_client)
-          .expect("Failed to create smtp email manager");
-        let email_pool = r2d2::Pool::builder().max_size(10).build(email_manager);
-
-        return Ok(
-          WebeAuth {
-            db_conn_pool: db_pool,
-            email_conn_pool: email_pool
+        match SmtpClient::new_simple("smtp.gmail.com") {
+          Ok(mut email_client) => {
+            let email_creds = ("jleis@webewizard.com", "JLeis@2406").into_credentials();
+            email_client = email_client.credentials(email_creds);
+            match SmtpConnectionManager::new(email_client) {
+              Ok(email_manager) => {
+                match r2d2::Pool::builder().max_size(10).build(email_manager) {
+                  Ok(email_pool) => {
+                    return Ok(
+                      WebeAuth {
+                        db_conn_pool: db_pool,
+                        email_conn_pool: email_pool
+                      }
+                    );
+                  }
+                  Err(err) => return Err(WebeAuthError::EmailPoolError(err))
+                }
+              }
+              Err(err) => return Err(WebeAuthError::EmailManagerError(err))
+            }
           }
-        );
+          Err(err) => return Err(WebeAuthError::EmailClientError(err))
+        }
       }
       Err(err) => return Err(WebeAuthError::DBPoolError(err)),
     }
@@ -103,6 +116,18 @@ impl WebeAuth {
         }
       }
       Err(err) => return Err(WebeAuthError::DBPoolError(err)),
+    }
+  }
+
+  pub fn send_verify_email(&self, account: Account) -> Result<(), WebeAuthError> {
+    match self.email_conn_pool.get() {
+      Ok(mut email_client_conn) => {
+        match account_api::send_verify_email(&mut email_client_conn, account) {
+          Ok(()) => return Ok(()),
+          Err(err) => return Err(WebeAuthError::AccountApiError(err)),
+        }
+      }
+      Err(err) => return Err(WebeAuthError::EmailPoolError(err)),
     }
   }
 
