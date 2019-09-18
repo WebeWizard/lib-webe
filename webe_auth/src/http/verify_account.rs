@@ -12,10 +12,10 @@ pub struct VerifyAccountResponder<'w> {
 }
 
 impl<'w> VerifyAccountResponder<'w> {
-  pub fn new(auth_manager: &'w WebeAuth, token_name: String) -> VerifyAccountResponder<'w> {
+  pub fn new(auth_manager: &'w WebeAuth, token_name: &str) -> VerifyAccountResponder<'w> {
     VerifyAccountResponder {
       auth_manager: auth_manager,
-      token_name: token_name,
+      token_name: token_name.to_string(),
     }
   }
 }

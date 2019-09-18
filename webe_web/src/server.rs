@@ -16,6 +16,15 @@ pub struct Route {
   pub uri: String,
 }
 
+impl Route {
+  pub fn new(method: &str, uri: &str) -> Route {
+    Route {
+      method: method.to_owned(),
+      uri: uri.to_owned(),
+    }
+  }
+}
+
 type RouteMap<'r> = HashMap<Route, Box<dyn Responder + 'r>>;
 
 pub struct Server<'r> {
@@ -25,6 +34,7 @@ pub struct Server<'r> {
   listener: TcpListener,
 }
 
+#[derive(Debug)]
 pub enum ServerError {
   BadRequest,                       // Request is unable to be processed by the server
   BindError(std::io::Error),        // server failed to bind on ip and port
@@ -233,8 +243,11 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                           Err(response_code) => {
                             let static_responder =
                               StaticResponder::from_standard_code(response_code);
-                            match static_responder.build_response(&mut request, &params, response_code)
-                            {
+                            match static_responder.build_response(
+                              &mut request,
+                              &params,
+                              response_code,
+                            ) {
                               Ok(mut response) => {
                                 match response.respond(BufWriter::new(&stream)) {
                                   Ok(()) => {} // keep_alive = true
@@ -248,7 +261,11 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                       }
                       Err(validation_code) => {
                         let static_responder = StaticResponder::from_standard_code(validation_code);
-                        match static_responder.build_response(&mut request, &params, validation_code) {
+                        match static_responder.build_response(
+                          &mut request,
+                          &params,
+                          validation_code,
+                        ) {
                           Ok(mut response) => {
                             match response.respond(BufWriter::new(&stream)) {
                               Ok(()) => {} // keep-alive = true

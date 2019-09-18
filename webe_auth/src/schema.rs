@@ -31,8 +31,4 @@ joinable!(webe_sessions -> webe_accounts (account_id));
 joinable!(webe_sessions -> webe_users (user_id));
 joinable!(webe_users -> webe_accounts (account_id));
 
-allow_tables_to_appear_in_same_query!(
-    webe_accounts,
-    webe_sessions,
-    webe_users,
-);
+allow_tables_to_appear_in_same_query!(webe_accounts, webe_sessions, webe_users,);

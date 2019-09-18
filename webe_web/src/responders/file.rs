@@ -14,6 +14,7 @@ pub struct FileResponder {
   path_param: String, // specifies the route parameter that provides file path relative to mount point
 }
 
+#[derive(Debug)]
 pub enum FileResponderError {
   BadPath,
 }

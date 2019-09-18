@@ -1,6 +1,6 @@
+extern crate crossbeam_utils;
 extern crate serde;
 extern crate serde_json;
-extern crate crossbeam_utils;
 
 pub mod constants;
 pub mod encoding;
