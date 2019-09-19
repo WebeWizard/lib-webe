@@ -2,5 +2,8 @@
 **/*.rs.bk
 Cargo.lock
 
-#environment file
-.env
+#environment files
+*.env
+
+#node
+node_modules
