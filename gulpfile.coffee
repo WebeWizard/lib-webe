@@ -1,12 +1,16 @@
 {src, dest, pipe, series} = require 'gulp'
 rename = require 'gulp-rename'
-{spawn} = require 'child_process'
+{spawn, spawnSync} = require 'child_process'
 process = require 'process'
 
 serverProcess = null
 
 devEnv = ->
   src('dev.env').pipe(rename '.env').pipe dest '.'
+
+buildExample = (cb) ->
+  spawnSync 'cargo', ['build','-p','example'], {stdio: 'inherit'}
+  cb()
 
 runExample = (cb) ->
   serverProcess = spawn 'cargo', ['run','-p','example'], {stdio: 'inherit'}
@@ -20,7 +24,7 @@ killServer = (cb) ->
 
 module.exports =
   
-  testExample: series devEnv, runExample, killServer
+  testExample: series devEnv, buildExample, runExample, killServer
 
   
 
