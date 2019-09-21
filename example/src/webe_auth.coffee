@@ -33,8 +33,27 @@ class WebeAuth
         .then (data) ->
           unless data is 'OK'
             return data
+      else
+        throw new Error "Error Creating Account"
     
   login: (email, secret) ->
+    @fetch @paths.CREATE_ACCOUNT,
+      method: 'POST'
+      body: JSON.stringify {email: email, secret: secret}
+    .then (response) ->
+      if response.ok and response.status is 200
+        # Returns session object
+        response.json()
+      else
+        throw new Error "Error Logging In"
 
   verify_account: (token) ->
+    @fetch @paths.VERIFY_ACCOUNT+token
+      method: 'GET'
+    .then (response)
+      if response.ok and response.status is 200
+        return
+      else
+        throw new Error "Error Verifying Account"
 
+exports.default = WebeAuth

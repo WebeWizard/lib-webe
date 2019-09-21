@@ -2,6 +2,9 @@
   "name": "lib-webe",
   "version": "0.0.1",
   "description": "One Library for One Wizard",
+  "scripts": {
+    "dev": "parcel index.html"
+  },
   "devDependencies": {
     "coffeescript": "^2.4.1",
     "gulp": "^4.0.2",
