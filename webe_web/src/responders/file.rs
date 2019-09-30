@@ -7,12 +7,23 @@ use std::path::PathBuf;
 use super::Request;
 use super::Responder;
 use super::Response;
+use super::Status;
+use super::Validation;
+use super::ValidationResult;
+use crate::constants::{DEFAULT_MIME_TYPES, MIME_OCTET_STREAM};
+
+#[derive(Clone)]
+pub enum MimeTypeList {
+  Default,
+  Custom(Vec<(String, String)>),
+}
 
 #[derive(Clone)]
 pub struct FileResponder {
   mount_point: PathBuf,
   path_param: String, // specifies the route parameter that provides file path relative to mount point
   use_index: bool,
+  mime_types: MimeTypeList,
 }
 
 #[derive(Debug)]
@@ -21,26 +32,48 @@ pub enum FileResponderError {
 }
 
 impl FileResponder {
-  pub fn new(
-    mount_point: String,
-    path_param: String,
-    use_index: bool,
-  ) -> Result<FileResponder, FileResponderError> {
+  pub fn new(mount_point: String, path_param: String) -> Result<FileResponder, FileResponderError> {
     let mount_point = PathBuf::from(mount_point);
     match mount_point.canonicalize() {
       Ok(abs_path) => Ok(FileResponder {
         mount_point: abs_path,
         path_param: path_param,
-        use_index: use_index,
+        use_index: true,
+        mime_types: MimeTypeList::Default,
       }),
       Err(_error) => return Err(FileResponderError::BadPath),
+    }
+  }
+
+  // if this responder has a custom list of mime types, use it. otherwise use crate const default list
+  pub fn find_mime_type(&self, file_path: &PathBuf) -> &str {
+    match file_path.extension() {
+      Some(extension) => match &self.mime_types {
+        MimeTypeList::Default => {
+          match DEFAULT_MIME_TYPES
+            .iter()
+            .find(|mime_type| mime_type.0 == extension)
+          {
+            Some(result) => return result.1,
+            None => MIME_OCTET_STREAM,
+          }
+        }
+        MimeTypeList::Custom(list) => match list
+          .iter()
+          .find(|mime_type| mime_type.0.as_str() == extension)
+        {
+          Some(result) => return result.1.as_str(),
+          None => MIME_OCTET_STREAM,
+        },
+      },
+      None => MIME_OCTET_STREAM,
     }
   }
 }
 
 impl Responder for FileResponder {
   // tests if the provided path exists
-  fn validate(&self, _request: &Request, params: &HashMap<String, String>) -> Result<u16, u16> {
+  fn validate(&self, _request: &Request, params: &HashMap<String, String>) -> ValidationResult {
     match params.get(&self.path_param) {
       Some(path_string) => {
         // build the full path
@@ -55,59 +88,51 @@ impl Responder for FileResponder {
             // at the moment we only return files. no directory
             if abs_file_path.starts_with(&self.mount_point) {
               if abs_file_path.is_file() {
-                return Ok(200);
+                return Ok(Some(Box::new(abs_file_path)));
               } else if self.use_index && abs_file_path.is_dir() {
                 // check for index.html or index.html
-                if abs_file_path.join("index.html").is_file()
-                  || abs_file_path.join("index.htm").is_file()
-                {
-                  return Ok(200);
+                if abs_file_path.join("index.html").is_file() {
+                  return Ok(Some(Box::new(abs_file_path.join("index.html"))));
+                } else if abs_file_path.join("index.htm").is_file() {
+                  return Ok(Some(Box::new(abs_file_path.join("index.htm"))));
                 }
               }
-              return Err(404);
+              return Err(Status::from_standard_code(404));
             } else {
-              return Err(404); // not in mounted directory or not a file
+              return Err(Status::from_standard_code(404)); // not in mounted directory or not a file
             }
           }
-          Err(_error) => return Err(404), // not found or failed to canonicalize
+          Err(_error) => return Err(Status::from_standard_code(404)), // not found or failed to canonicalize
         }
       }
-      None => return Err(500), // no path provided
+      None => return Err(Status::from_standard_code(500)), // no path provided
     }
   }
 
   fn build_response(
     &self,
     _request: &mut Request,
-    params: &HashMap<String, String>,
-    validation_code: u16,
+    _params: &HashMap<String, String>,
+    validation: Validation,
   ) -> Result<Response, u16> {
-    // get the size of the file
-    match params.get(&self.path_param) {
-      Some(path_string) => {
-        // build the full path and open the file
-        let mut file_path = PathBuf::new();
-        file_path.push(&self.mount_point);
-        file_path.push(PathBuf::from(path_string));
-        match file_path.canonicalize() {
-          Ok(mut abs_file_path) => {
-            if self.use_index && abs_file_path.is_dir() {
-              // check for and use index.html or index.html
-              if abs_file_path.join("index.html").is_file() {
-                abs_file_path.push("index.html")
-              } else if abs_file_path.join("index.htm").is_file() {
-                abs_file_path.push("index.htm")
-              }
-            }
-            match abs_file_path.metadata() {
+    // use the path contained in the validation
+    match validation {
+      Some(any_box) => {
+        match any_box.downcast::<PathBuf>() {
+          Ok(path_box) => {
+            match path_box.metadata() {
               Ok(meta) => {
                 let size = meta.len();
-                match File::open(abs_file_path) {
+                match File::open(path_box.as_ref()) {
                   Ok(file) => {
                     // build the response
                     let mut headers = HashMap::<String, String>::new();
                     headers.insert("Content-Length".to_owned(), size.to_string());
-                    let mut response = Response::new(validation_code);
+                    headers.insert(
+                      "Content-Type".to_owned(),
+                      self.find_mime_type(&path_box).to_string(),
+                    );
+                    let mut response = Response::new(200);
                     response.headers = headers;
                     response.message_body = Some(Box::new(BufReader::new(file)));
                     return Ok(response);

@@ -55,7 +55,7 @@ fn main() {
   // add routes
   // -- static files
   let file_route = Route::new("GET", "/<path>");
-  let file_responder = FileResponder::new(".".to_owned(), "<path>".to_owned(), true)
+  let file_responder = FileResponder::new(".".to_owned(), "<path>".to_owned())
     .expect("Failed to create FileResponder");
   web_server.add_route(file_route, file_responder);
 

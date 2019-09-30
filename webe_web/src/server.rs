@@ -9,6 +9,7 @@ use super::encoding::chunked::ChunkedDecoder;
 use super::request::Request;
 use super::responders::static_message::StaticResponder;
 use super::responders::Responder;
+use super::status::Status;
 
 #[derive(PartialEq, Eq, Hash)]
 pub struct Route {
@@ -179,6 +180,8 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                       }
                     }
 
+                    // TODO: move respnder.validate() here
+
                     // use a trait object because the exact reader type is unknown at compile time
                     let mut body_reader: Box<dyn BufRead + 's> = Box::new(buf_reader);
 
@@ -233,9 +236,10 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                       None => {}
                     }
 
+                    // TODO: move validate to before body reader is built
                     match responder.validate(&request, &params) {
-                      Ok(validation_code) => {
-                        match responder.build_response(&mut request, &params, validation_code) {
+                      Ok(validation_result) => {
+                        match responder.build_response(&mut request, &params, validation_result) {
                           Ok(mut response) => match response.respond(BufWriter::new(&stream)) {
                             Ok(()) => keep_alive = response.keep_alive,
                             Err(_error) => return Err(ServerError::InternalError),
@@ -246,7 +250,7 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                             match static_responder.build_response(
                               &mut request,
                               &params,
-                              response_code,
+                              None,
                             ) {
                               Ok(mut response) => {
                                 match response.respond(BufWriter::new(&stream)) {
@@ -259,12 +263,12 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                           }
                         }
                       }
-                      Err(validation_code) => {
-                        let static_responder = StaticResponder::from_standard_code(validation_code);
+                      Err(validation_status) => {
+                        let static_responder = StaticResponder::from_status(validation_status);
                         match static_responder.build_response(
                           &mut request,
                           &params,
-                          validation_code,
+                          None,
                         ) {
                           Ok(mut response) => {
                             match response.respond(BufWriter::new(&stream)) {
@@ -285,7 +289,7 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                 match static_responder.build_response(
                   &mut request,
                   &HashMap::<String, String>::new(),
-                  400,
+                  None,
                 ) {
                   Ok(mut response) => {
                     match response.respond(BufWriter::new(&stream)) {

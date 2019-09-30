@@ -3,6 +3,7 @@ use webe_web::request::Request;
 use webe_web::responders::static_message::StaticResponder;
 use webe_web::responders::Responder;
 use webe_web::response::Response;
+use webe_web::validation::Validation;
 
 use std::collections::HashMap;
 
@@ -21,36 +22,31 @@ impl<'w> VerifyAccountResponder<'w> {
 }
 
 impl<'w> Responder for VerifyAccountResponder<'w> {
-  fn validate(&self, _request: &Request, _params: &HashMap<String, String>) -> Result<u16, u16> {
-    dbg!("VerifyAccountResponder validating");
-    return Ok(200);
-  }
-
   fn build_response(
     &self,
     request: &mut Request,
     params: &HashMap<String, String>,
-    _validation_code: u16,
+    _validation: Validation,
   ) -> Result<Response, u16> {
     match params.get(&self.token_name) {
       Some(code) => {
         match self.auth_manager.verify_account(code) {
           Ok(()) => {
             let static_responder = StaticResponder::from_standard_code(200);
-            return static_responder.build_response(request, params, 200);
+            return static_responder.build_response(request, params, None);
           }
           Err(error) => {
             // TODO: using error debug for now
             // convert the WebeAuth error down into something meaningful
             let static_responder = StaticResponder::new(500, format!("{:?}", error));
-            return static_responder.build_response(request, params, 500);
+            return static_responder.build_response(request, params, None);
           }
         }
       }
       None => {
         // bad request
         let static_responder = StaticResponder::from_standard_code(400);
-        return static_responder.build_response(request, params, 400);
+        return static_responder.build_response(request, params, None);
       }
     }
   }

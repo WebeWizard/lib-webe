@@ -9,7 +9,7 @@ Has 2 parts:  a tuple of (Method,RouteURI) and a Responder.
 
 #### Responder
 Responder is a trait with two functions: `validate` and `build_response`.  
-`validate` is intended to be a fast way to verify if the request is worth responding to.  
+`validate` takes place before the body is prepared for reading and is intended to be a fast way to verify if the request is worth responding to.  
 It returns a Result<u16,u16> where the u16 represents a status code to send to the next operation. Ok(u16) will tell the server to call the responder's `build_response` function and hint to the function what http status is appropriate. Err(u16) will tell the server to call the server's static_message responder which always builds a response with the provided u16 http status code.
 
 
