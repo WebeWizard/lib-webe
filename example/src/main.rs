@@ -3,12 +3,16 @@ extern crate dotenv;
 extern crate webe_auth;
 extern crate webe_web;
 
+use std::collections::HashMap;
 use std::env;
 use std::net::Ipv4Addr;
 
 use webe_auth::http::{create_account, login, verify_account};
-use webe_web::responders::file::FileResponder;
+use webe_web::request::Request;
+use webe_web::responders::{file::FileResponder, static_message::StaticResponder, Responder};
+use webe_web::response::Response;
 use webe_web::server::{Route, Server};
+use webe_web::validation::Validation;
 
 fn main() {
   // load environment
@@ -53,6 +57,40 @@ fn main() {
   let mut web_server = Server::new(&ip, &port).expect("Failed to create web server");
 
   // add routes
+  // -- OPTIONS for preflight request
+  struct OptionsResponder;
+  impl Responder for OptionsResponder {
+    fn build_response(
+      &self,
+      _request: &mut Request,
+      _params: &HashMap<String, String>,
+      _validation: Validation,
+    ) -> Result<Response, u16> {
+      let mut headers = HashMap::<String, String>::new();
+      headers.insert(
+        "Access-Control-Allow-Origin".to_owned(),
+        "http://localhost:1234".to_owned(),
+      );
+      headers.insert(
+        "Access-Control-Allow-Methods".to_owned(),
+        "POST, GET, OPTIONS".to_owned(),
+      );
+      headers.insert(
+        "Access-Control-Allow-Headers".to_owned(),
+        "Content-Type".to_owned(),
+      );
+      headers.insert("Content-Type".to_owned(), "text/html".to_owned());
+      let mut response = StaticResponder::from_standard_code(200)
+        .build_response(_request, _params, _validation)
+        .unwrap();
+      response.headers = headers;
+      return Ok(response);
+    }
+  }
+  let options_route = Route::new("OPTIONS", "/<dump>");
+  let options_responder = OptionsResponder;
+  web_server.add_route(options_route, options_responder);
+
   // -- static files
   let file_route = Route::new("GET", "/<path>");
   let file_responder = FileResponder::new(".".to_owned(), "<path>".to_owned())
