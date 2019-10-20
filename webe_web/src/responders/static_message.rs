@@ -36,7 +36,7 @@ impl StaticResponder {
 }
 
 impl Responder for StaticResponder {
-   fn build_response(
+  fn build_response(
     &self,
     _request: &mut Request,
     _params: &HashMap<String, String>,

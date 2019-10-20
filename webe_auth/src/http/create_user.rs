@@ -2,10 +2,10 @@ use crate::WebeAuth;
 use webe_web::request::Request;
 use webe_web::responders::static_message::StaticResponder;
 use webe_web::responders::Responder;
-use webe_web::validation::Validation;
-use webe_web::validation::ValidationResult;
 use webe_web::response::Response;
 use webe_web::status::Status;
+use webe_web::validation::Validation;
+use webe_web::validation::ValidationResult;
 
 use std::collections::HashMap;
 
@@ -61,7 +61,7 @@ impl<'w> Responder for CreateUserResponder<'w> {
         match serde_json::from_reader::<_, CreateUserForm>(body_reader) {
           Ok(form) => {
             // TODO: use session from validation instead of getting it again
-            match request.headers.get("x-auth-token") {
+            match request.headers.get("webe-auth") {
               Some(session_token) => {
                 match self.auth_manager.get_session(session_token) {
                   Ok(session) => {

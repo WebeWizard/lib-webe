@@ -38,6 +38,7 @@ impl<'w> Responder for CreateAccountResponder<'w> {
       Some(body_reader) => {
         match serde_json::from_reader::<_, CreateAccountForm>(body_reader) {
           Ok(form) => {
+            dbg!("email: {}, secret: {}", &form.email, &form.secret);
             match self.auth_manager.create_account(form.email, form.secret) {
               Ok(_account) => {
                 // TODO: If Debug: return 200 with the account verify code.
@@ -54,7 +55,9 @@ impl<'w> Responder for CreateAccountResponder<'w> {
               }
             }
           }
-          Err(_error) => { /* fall down into 500 response */ }
+          Err(error) => {
+            dbg!(error); /* fall down into 500 response */
+          }
         }
       }
       None => { /* fall down into 500 response */ }

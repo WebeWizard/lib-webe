@@ -7,7 +7,9 @@
   },
   "devDependencies": {
     "coffeescript": "^2.4.1",
+    "elm-hot": "^1.1.2",
     "gulp": "^4.0.2",
-    "gulp-rename": "1.4.0"
+    "gulp-rename": "1.4.0",
+    "node-elm-compiler": "^5.0.4"
   }
 }

@@ -6,6 +6,7 @@ use webe_web::response::Response;
 use webe_web::validation::Validation;
 
 use std::collections::HashMap;
+use std::io::Cursor;
 
 use serde::Deserialize;
 
@@ -41,18 +42,24 @@ impl<'w> Responder for LoginResponder<'w> {
           Ok(form) => {
             match self.auth_manager.login(&form.email, &form.pass) {
               Ok(session) => {
-                match serde_json::to_string(&session) {
-                  Ok(message) => {
-                    let responder = StaticResponder::new(200, message);
-                    return responder.build_response(request, params, None);
-                  }
-                  Err(_error) => { /* fall down into 401 response */ }
-                }
+                let mut response = Response::new(200);
+                response
+                  .headers
+                  .insert("Content-Type".to_owned(), "application/json".to_owned());
+                response
+                  .headers
+                  .insert("Content-Length".to_owned(), session.token.len().to_string());
+                response.message_body = Some(Box::new(Cursor::new(session.token)));
+                return Ok(response);
               }
-              Err(_error) => { /* fall down into 401 response */ }
+              Err(_error) => {
+                dbg!(_error); /* fall down into 401 response *//* fall down into 401 response */
+              }
             }
           }
-          Err(_error) => { /* fall down into 401 response */ }
+          Err(_error) => {
+            dbg!(_error); /* fall down into 401 response */
+          }
         }
       }
       None => { /* fall down into 401 response */ }
