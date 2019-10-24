@@ -46,6 +46,7 @@ impl Response {
       Ok(_) => {
         // reconcile keep-alive header
         if self.keep_alive {
+          // TODO: this should be handled by the server process_stream, not the response
           self
             .headers
             .insert("Connection".to_owned(), "keep-alive".to_owned());
@@ -61,12 +62,12 @@ impl Response {
       }
       Err(_error) => return Err(ResponseError::WriteError),
     }
-    // write the message body
-    match &mut self.message_body {
-      Some(body_reader) => {
-        // begin with empty new line
-        match buf_writer.write(b"\r\n") {
-          Ok(_) => {
+    // begin with empty new line
+    match buf_writer.write(b"\r\n") {
+      Ok(_) => {
+        // write the message body
+        match &mut self.message_body {
+          Some(body_reader) => {
             // iterate through message_body until it's empty
             // TODO: does fiddling with the buffer size help performance?
             let mut buf = [0u8; WEBE_BUFFER_SIZE];
@@ -81,10 +82,10 @@ impl Response {
               }
             }
           }
-          Err(_error) => return Err(ResponseError::WriteError),
+          None => {}
         }
       }
-      None => {}
+      Err(_error) => return Err(ResponseError::WriteError),
     }
     // flush the stream
     match buf_writer.flush() {

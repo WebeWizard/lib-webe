@@ -240,18 +240,25 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                     match responder.validate(&request, &params) {
                       Ok(validation_result) => {
                         match responder.build_response(&mut request, &params, validation_result) {
-                          Ok(mut response) => match response.respond(BufWriter::new(&stream)) {
-                            Ok(()) => keep_alive = response.keep_alive,
-                            Err(_error) => return Err(ServerError::InternalError),
-                          },
+                          Ok(mut response) => {
+                            // TODO: Need a solution for adding CORS header to all responses
+                            response.headers.insert(
+                              "Access-Control-Allow-Origin".to_owned(),
+                              "http://localhost:1234".to_owned(),
+                            );
+                            match response.respond(BufWriter::new(&stream)) {
+                              Ok(()) => {
+                                keep_alive = response.keep_alive;
+                                //keep_alive = false;
+                                print!("Done");
+                              }
+                              Err(_error) => return Err(ServerError::InternalError),
+                            }
+                          }
                           Err(response_code) => {
                             let static_responder =
                               StaticResponder::from_standard_code(response_code);
-                            match static_responder.build_response(
-                              &mut request,
-                              &params,
-                              None,
-                            ) {
+                            match static_responder.build_response(&mut request, &params, None) {
                               Ok(mut response) => {
                                 match response.respond(BufWriter::new(&stream)) {
                                   Ok(()) => {} // keep_alive = true
@@ -265,11 +272,7 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                       }
                       Err(validation_status) => {
                         let static_responder = StaticResponder::from_status(validation_status);
-                        match static_responder.build_response(
-                          &mut request,
-                          &params,
-                          None,
-                        ) {
+                        match static_responder.build_response(&mut request, &params, None) {
                           Ok(mut response) => {
                             match response.respond(BufWriter::new(&stream)) {
                               Ok(()) => {} // keep-alive = true
