@@ -83,9 +83,9 @@ where
 
 pub fn send_verify_email(
   email_client_conn: &mut PooledConnection<SmtpConnectionManager>,
-  account: Account,
+  account: &Account,
 ) -> Result<(), AccountApiError> {
-  match account.verify_code {
+  match &account.verify_code {
     Some(code) => {
       let email_client: &mut SmtpTransport = email_client_conn.deref_mut();
       let email_builder = Email::builder()

@@ -105,7 +105,7 @@ fn main() {
 
   let verify_account_route = Route::new("GET", "/account/verify/<token>");
   let verify_account_responder =
-    verify_account::VerifyAccountResponder::new(&auth_manager, "token");
+    verify_account::VerifyAccountResponder::new(&auth_manager, "<token>");
   web_server.add_route(verify_account_route, verify_account_responder);
 
   // -- -- session
