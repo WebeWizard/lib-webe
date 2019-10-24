@@ -66,24 +66,19 @@ fn main() {
       _params: &HashMap<String, String>,
       _validation: Validation,
     ) -> Result<Response, u16> {
-      let mut headers = HashMap::<String, String>::new();
-      headers.insert(
+      let mut response = Response::new(204);
+      response.headers.insert(
         "Access-Control-Allow-Origin".to_owned(),
         "http://localhost:1234".to_owned(),
       );
-      headers.insert(
+      response.headers.insert(
         "Access-Control-Allow-Methods".to_owned(),
         "POST, GET, OPTIONS".to_owned(),
       );
-      headers.insert(
+      response.headers.insert(
         "Access-Control-Allow-Headers".to_owned(),
-        "Content-Type".to_owned(),
+        "content-type".to_owned(),
       );
-      headers.insert("Content-Type".to_owned(), "text/html".to_owned());
-      let mut response = StaticResponder::from_standard_code(200)
-        .build_response(_request, _params, _validation)
-        .unwrap();
-      response.headers = headers;
       return Ok(response);
     }
   }
