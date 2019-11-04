@@ -45,7 +45,7 @@ impl<'w> Responder for LoginResponder<'w> {
                 let mut response = Response::new(200);
                 response
                   .headers
-                  .insert("Content-Type".to_owned(), "application/json".to_owned());
+                  .insert("Content-Type".to_owned(), "text/plain".to_owned());
                 response
                   .headers
                   .insert("Content-Length".to_owned(), session.token.len().to_string());
