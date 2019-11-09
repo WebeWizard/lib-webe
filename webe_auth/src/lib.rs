@@ -11,12 +11,11 @@ extern crate webe_web;
 
 /*
   Accounts - used to authenticate a single user
-  Users - contains user specific information like name, email, etc.
-  Session - A result of logging in and selecting a user.
-   - Contains a token for accessing user specific data
+  Session - A result of logging in.
+   - Contains a token for accessing account specific data
    - Contains an expiration date for timing out and forcing re-auth
 
-  TODO - for every db table, have two users, neither of which can edit table structure/permission
+  TODO - for every db table, have two mysql users, neither of which can edit table structure/permission
    - one that can insert/update/select/delete
    - one that can only read
 */
@@ -39,12 +38,9 @@ use api::account_api;
 use api::account_api::AccountApiError;
 use api::session_api;
 use api::session_api::SessionApiError;
-use api::user_api;
-use api::user_api::UserApiError;
 use email::EmailError;
 use models::account_model::Account;
 use models::session_model::Session;
-use models::user_model::User;
 
 pub struct WebeAuth {
   pub db_conn_pool: diesel_r2d2::Pool<diesel_r2d2::ConnectionManager<MysqlConnection>>,
@@ -54,7 +50,6 @@ pub struct WebeAuth {
 #[derive(Debug)]
 pub enum WebeAuthError {
   AccountApiError(AccountApiError),
-  BadUser,
   DBConnError(ConnectionError),
   DBError(DieselError),
   DBPoolError(diesel_r2d2::PoolError),
@@ -62,7 +57,6 @@ pub enum WebeAuthError {
   OtherError,
   SessionApiError(SessionApiError),
   SessionExpired,
-  UserApiError(UserApiError),
 }
 
 // TODO: create a new AuthManager trait to separate struct methods from impl
@@ -149,42 +143,6 @@ impl WebeAuth {
     }
   }
 
-  pub fn create_user(&self, acc_id: &Vec<u8>, name: String) -> Result<User, WebeAuthError> {
-    match self.db_conn_pool.get() {
-      Ok(connection) => {
-        // TODO:  vaidate user_name, email, password, etc
-        match user_api::create_user(&connection, acc_id, name) {
-          Ok(new_user) => return Ok(new_user),
-          Err(err) => return Err(WebeAuthError::UserApiError(err)),
-        }
-      }
-      Err(err) => return Err(WebeAuthError::DBPoolError(err)),
-    }
-  }
-
-  pub fn get_user_by_name(&self, acc_id: &Vec<u8>, name: &String) -> Result<User, WebeAuthError> {
-    match self.db_conn_pool.get() {
-      Ok(connection) => match user_api::find_by_name(&connection, acc_id, name) {
-        Ok(user) => return Ok(user),
-        Err(err) => return Err(WebeAuthError::UserApiError(err)),
-      },
-      Err(err) => return Err(WebeAuthError::DBPoolError(err)),
-    }
-  }
-
-  pub fn delete_user(&self, user_id: &Vec<u8>) -> Result<(), WebeAuthError> {
-    match self.db_conn_pool.get() {
-      Ok(connection) => {
-        // TODO:  Make sure the requesting Session has permission to delete this account
-        match user_api::delete_user(&connection, user_id) {
-          Ok(_) => return Ok(()),
-          Err(err) => return Err(WebeAuthError::UserApiError(err)),
-        }
-      }
-      Err(err) => return Err(WebeAuthError::DBPoolError(err)),
-    }
-  }
-
   pub fn login(&self, email_address: &String, pass: &String) -> Result<Session, WebeAuthError> {
     match self.db_conn_pool.get() {
       Ok(connection) => match session_api::login(&connection, &email_address, &pass) {
@@ -198,20 +156,6 @@ impl WebeAuth {
   pub fn get_session(&self, session_token: &String) -> Result<Session, WebeAuthError> {
     match self.db_conn_pool.get() {
       Ok(connection) => match session_api::find(&connection, &session_token) {
-        Ok(new_session) => return Ok(new_session),
-        Err(err) => return Err(WebeAuthError::SessionApiError(err)),
-      },
-      Err(err) => return Err(WebeAuthError::DBPoolError(err)),
-    }
-  }
-
-  pub fn change_user(
-    &self,
-    session_token: &String,
-    new_user_id: &Vec<u8>,
-  ) -> Result<(), WebeAuthError> {
-    match self.db_conn_pool.get() {
-      Ok(connection) => match session_api::change_user(&connection, session_token, new_user_id) {
         Ok(new_session) => return Ok(new_session),
         Err(err) => return Err(WebeAuthError::SessionApiError(err)),
       },

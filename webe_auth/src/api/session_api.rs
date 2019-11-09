@@ -4,16 +4,12 @@ use diesel::prelude::*;
 use diesel::result::Error as DieselError;
 
 use crate::schema::webe_sessions;
-use crate::schema::webe_sessions::dsl::*;
 
 use super::account_api;
 use super::session_model::{Session, SessionError};
-use super::user_api;
-use super::user_api::UserApiError;
 
 #[derive(Debug)]
 pub enum SessionApiError {
-  BadUser,
   GenericLoginError,
   AccountNotVerified,
   DBError(DieselError), // errors from interacting with database
@@ -21,7 +17,6 @@ pub enum SessionApiError {
   SessionError(SessionError),
   SessionExpired,
   OtherError,
-  UserApiError(UserApiError),
 }
 
 pub fn find<T>(connection: &T, session_token: &String) -> Result<Session, SessionApiError>
@@ -34,7 +29,7 @@ where
   }
 }
 
-// authenticates an account and returns a Session (without user)
+// authenticates an account and returns a Session
 // TODO: if not verified, ask if we should resend verification email
 // TODO: if secret is expired.. have the user choose a new secret
 pub fn login<T>(
@@ -96,49 +91,6 @@ where
       }
     }
     Err(err) => return Err(SessionApiError::SessionError(err)),
-  }
-}
-
-// updates a session's selected user.
-pub fn change_user<T>(
-  connection: &T,
-  session_token: &String,
-  new_user_id: &Vec<u8>,
-) -> Result<(), SessionApiError>
-where
-  T: diesel::Connection<Backend = diesel::mysql::Mysql>, // TODO: make this backend generic
-{
-  // make sure session is still valid
-  match find(connection, session_token) {
-    Ok(session) => {
-      match session.is_expired() {
-        Ok(expired) => {
-          if !expired {
-            // make sure user belongs to account on session
-            match user_api::find(connection, new_user_id) {
-              Ok(user) => {
-                if user.account_id == session.account_id {
-                  match diesel::update(webe_sessions.find(session_token))
-                    .set(user_id.eq(Some(new_user_id)))
-                    .execute(connection)
-                  {
-                    Ok(_) => return Ok(()),
-                    Err(err) => return Err(SessionApiError::DBError(err)),
-                  }
-                } else {
-                  return Err(SessionApiError::BadUser);
-                }
-              }
-              Err(err) => return Err(SessionApiError::UserApiError(err)),
-            }
-          } else {
-            return Err(SessionApiError::SessionExpired);
-          }
-        }
-        Err(_) => return Err(SessionApiError::OtherError), // TODO: maybe return proper Session error
-      }
-    }
-    Err(err) => return Err(err),
   }
 }
 
