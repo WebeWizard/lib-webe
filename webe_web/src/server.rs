@@ -9,7 +9,6 @@ use super::encoding::chunked::ChunkedDecoder;
 use super::request::Request;
 use super::responders::static_message::StaticResponder;
 use super::responders::Responder;
-use super::status::Status;
 
 #[derive(PartialEq, Eq, Hash)]
 pub struct Route {

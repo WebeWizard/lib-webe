@@ -12,13 +12,11 @@ use super::Validation;
 use super::ValidationResult;
 use crate::constants::{DEFAULT_MIME_TYPES, MIME_OCTET_STREAM};
 
-#[derive(Clone)]
 pub enum MimeTypeList {
   Default,
   Custom(Vec<(String, String)>),
 }
 
-#[derive(Clone)]
 pub struct FileResponder {
   mount_point: PathBuf,
   path_param: String, // specifies the route parameter that provides file path relative to mount point

@@ -11,7 +11,7 @@ use super::validation::ValidationResult;
 
 pub trait Responder: Send + Sync {
   // tests if the request is worth responding to. Ok(status_code) or Err(status_code)
-  fn validate(&self, request: &Request, params: &HashMap<String, String>) -> ValidationResult {
+  fn validate(&self, _request: &Request, _params: &HashMap<String, String>) -> ValidationResult {
     Ok(None)
   }
 

@@ -8,7 +8,6 @@ use super::Response;
 use super::Status;
 use super::Validation;
 
-#[derive(Clone)]
 pub struct StaticResponder {
   status_code: u16,
   message: String, // TODO: take a reference instead of owning it
