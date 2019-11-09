@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::io::Cursor;
 
 use serde::Deserialize;
+use serde_json;
 
 #[derive(Deserialize)]
 pub struct LoginForm {
@@ -42,18 +43,26 @@ impl<'w> Responder for LoginResponder<'w> {
           Ok(form) => {
             match self.auth_manager.login(&form.email, &form.pass) {
               Ok(session) => {
-                let mut response = Response::new(200);
-                response
-                  .headers
-                  .insert("Content-Type".to_owned(), "text/plain".to_owned());
-                response
-                  .headers
-                  .insert("Content-Length".to_owned(), session.token.len().to_string());
-                response.message_body = Some(Box::new(Cursor::new(session.token)));
-                return Ok(response);
+                match serde_json::to_string(&session) {
+                  Ok(body) => {
+                    let mut response = Response::new(200);
+                    dbg!(&body);
+                    response
+                      .headers
+                      .insert("Content-Type".to_owned(), "application/json".to_owned());
+                    response
+                      .headers
+                      .insert("Content-Length".to_owned(), body.len().to_string());
+                    response.message_body = Some(Box::new(Cursor::new(body)));
+                    return Ok(response);
+                  }
+                  Err(_error) => {
+                    dbg!(_error); /* fall down into 401 response */
+                  }
+                };
               }
               Err(_error) => {
-                dbg!(_error); /* fall down into 401 response *//* fall down into 401 response */
+                dbg!(_error); /* fall down into 401 response */
               }
             }
           }
