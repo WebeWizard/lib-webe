@@ -1,3 +1,2 @@
-drop table webe_account;
-drop table webe_user;
-drop table webe_session;
+drop table webe_accounts;
+drop table webe_sessions;

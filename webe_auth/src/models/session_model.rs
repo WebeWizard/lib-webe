@@ -1,5 +1,4 @@
 use super::account_model::Account;
-use super::user_model::User;
 use crate::constants::SECONDS_30_DAYS;
 use crate::schema::webe_sessions;
 
@@ -12,12 +11,10 @@ use serde::Serialize;
 #[derive(Debug, Identifiable, Queryable, Insertable, Associations, Serialize)]
 #[primary_key(token)]
 #[belongs_to(Account, foreign_key = "account_id")]
-#[belongs_to(User, foreign_key = "user_id")]
 #[table_name = "webe_sessions"]
 pub struct Session {
   pub token: String,
   pub account_id: Vec<u8>,
-  pub user_id: Option<Vec<u8>>,
   timeout: u32, // based on last time credentials were provided
 }
 
@@ -37,7 +34,6 @@ impl Session {
     return Ok(Session {
       token: thread_rng().sample_iter(&Alphanumeric).take(30).collect(),
       account_id: account_id.to_vec(),
-      user_id: None,
       timeout: new_timeout,
     });
   }
