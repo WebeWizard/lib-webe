@@ -6,7 +6,7 @@ extern crate native_tls;
 extern crate r2d2;
 extern crate rand;
 extern crate serde;
-extern crate uuid;
+extern crate webe_id;
 extern crate webe_web;
 
 /*
@@ -20,159 +20,155 @@ extern crate webe_web;
    - one that can only read
 */
 
-pub mod api;
+pub mod account;
 pub mod constants;
-pub mod database;
+pub mod db;
 pub mod email;
 pub mod http;
-pub mod models;
 pub mod schema;
+pub mod session;
 pub mod utility;
 
-use diesel::prelude::*;
-use diesel::r2d2 as diesel_r2d2;
-use diesel::result::Error as DieselError;
-use lettre::SmtpConnectionManager;
+use lettre_email::Email;
+use std::sync::Mutex;
 
-use api::account_api;
-use api::account_api::AccountApiError;
-use api::session_api;
-use api::session_api::SessionApiError;
-use email::EmailError;
-use models::account_model::Account;
-use models::session_model::Session;
-
-pub struct WebeAuth {
-  pub db_conn_pool: diesel_r2d2::Pool<diesel_r2d2::ConnectionManager<MysqlConnection>>,
-  pub email_conn_pool: r2d2::Pool<SmtpConnectionManager>,
-}
+use account::Account;
+use db::DBApiError;
+use email::{EmailApi, EmailError};
+use session::Session;
 
 #[derive(Debug)]
-pub enum WebeAuthError {
-  AccountApiError(AccountApiError),
-  DBConnError(ConnectionError),
-  DBError(DieselError),
-  DBPoolError(diesel_r2d2::PoolError),
+pub enum AuthError {
+  AccountError(account::AccountError),
+  DBError(DBApiError),
   EmailError(EmailError),
   OtherError,
-  SessionApiError(SessionApiError),
-  SessionExpired,
 }
 
-// TODO: create a new AuthManager trait to separate struct methods from impl
+pub trait AuthManager {
+  // *ACCOUNT*
+  fn create_account(&self, username: String, password: String) -> Result<Account, AuthError>;
 
-impl WebeAuth {
-  pub fn create_account(
+  fn reset_verification(&self, email_address: &String, pass: &String) -> Result<(), AuthError>;
+
+  fn verify_account(
     &self,
-    new_email: String,
-    password: String,
-  ) -> Result<Account, WebeAuthError> {
-    match self.db_conn_pool.get() {
-      Ok(connection) => {
-        // TODO:  validate user_name, email, password, etc
-        match account_api::create_account(&connection, new_email, password) {
-          Ok(new_account) => match self.send_verify_email(&new_account) {
-            Ok(()) => return Ok(new_account),
-            Err(err) => return Err(err),
-          },
-          Err(err) => return Err(WebeAuthError::AccountApiError(err)),
-        }
-      }
-      Err(err) => return Err(WebeAuthError::DBPoolError(err)),
-    }
-  }
+    email_address: &String,
+    pass: &String,
+    code: &String,
+  ) -> Result<Session, AuthError>;
 
-  pub fn send_verify_email(&self, account: &Account) -> Result<(), WebeAuthError> {
-    match self.email_conn_pool.get() {
-      Ok(mut email_client_conn) => {
-        match account_api::send_verify_email(&mut email_client_conn, account) {
-          Ok(()) => return Ok(()),
-          Err(err) => return Err(WebeAuthError::AccountApiError(err)),
-        }
-      }
-      Err(err) => return Err(WebeAuthError::EmailError(EmailError::PoolError(err))),
-    }
-  }
+  // TODO: Reset password
 
-  pub fn verify_account(&self, code: &String) -> Result<(), WebeAuthError> {
-    match self.db_conn_pool.get() {
-      Ok(connection) => {
-        // TODO:  test to see if account is already verified
-        match account_api::verify(&connection, code) {
-          Ok(_) => return Ok(()),
-          Err(err) => return Err(WebeAuthError::AccountApiError(err)),
-        }
-      }
-      Err(err) => return Err(WebeAuthError::DBPoolError(err)),
-    }
-  }
+  fn delete_account(&self, account: Account) -> Result<(), AuthError>;
 
-  pub fn reset_verification(&self, account_id: &Vec<u8>) -> Result<(), WebeAuthError> {
-    match self.db_conn_pool.get() {
-      Ok(connection) => {
-        // TODO:  test to see if account is already verified
-        match account_api::reset_verification(&connection, &account_id) {
-          Ok(_) => return Ok(()),
-          Err(err) => return Err(WebeAuthError::AccountApiError(err)),
-        }
-      }
-      Err(err) => return Err(WebeAuthError::DBPoolError(err)),
-    }
-  }
+  // *SESSION*
+  fn login(&self, email_address: &String, pass: &String) -> Result<Session, AuthError>;
 
-  pub fn delete_account(&self, account_id: &Vec<u8>) -> Result<(), WebeAuthError> {
-    match self.db_conn_pool.get() {
-      Ok(connection) => {
-        // TODO:  Make sure the requesting Session has permission to delete this account
-        match account_api::delete_account(&connection, account_id) {
-          Ok(_) => return Ok(()),
-          Err(err) => return Err(WebeAuthError::AccountApiError(err)),
-        }
-      }
-      Err(err) => return Err(WebeAuthError::DBPoolError(err)),
-    }
-  }
+  fn logout(&self, account_id: &u64) -> Result<(), AuthError>;
+}
 
-  pub fn get_account_by_email(&self, email_address: &String) -> Result<Account, WebeAuthError> {
-    match self.db_conn_pool.get() {
-      Ok(connection) => match account_api::find_by_email(&connection, email_address) {
-        Ok(account) => return Ok(account),
-        Err(err) => return Err(WebeAuthError::AccountApiError(err)),
+pub struct WebeAuth<'w> {
+  pub db_manager: db::DBManager,
+  pub email_manager: email::EmailManager,
+  pub id_factory: &'w Mutex<webe_id::WebeIDFactory>,
+  // TODO: this is a pretty complex type.  Intent is to share factory amongst parts of the app, not just auth.
+}
+
+impl<'w> WebeAuth<'w> {
+  pub fn new_id(&self) -> Result<u64, AuthError> {
+    match self.id_factory.lock() {
+      Ok(mut factory) => match factory.next() {
+        Ok(id) => return Ok(id),
+        _ => return Err(AuthError::OtherError),
       },
-      Err(err) => return Err(WebeAuthError::DBPoolError(err)),
+      // TODO: find a way to make the lock not poisonable
+      _ => return Err(AuthError::OtherError), // mutex is poisoned
     }
   }
 
-  pub fn login(&self, email_address: &String, pass: &String) -> Result<Session, WebeAuthError> {
-    match self.db_conn_pool.get() {
-      Ok(connection) => match session_api::login(&connection, &email_address, &pass) {
-        Ok(new_session) => return Ok(new_session),
-        Err(err) => return Err(WebeAuthError::SessionApiError(err)),
-      },
-      Err(err) => return Err(WebeAuthError::DBPoolError(err)),
-    }
-  }
-
-  pub fn get_session(&self, session_token: &String) -> Result<Session, WebeAuthError> {
-    match self.db_conn_pool.get() {
-      Ok(connection) => match session_api::find(&connection, &session_token) {
-        Ok(new_session) => return Ok(new_session),
-        Err(err) => return Err(WebeAuthError::SessionApiError(err)),
-      },
-      Err(err) => return Err(WebeAuthError::DBPoolError(err)),
-    }
-  }
-
-  pub fn delete_session(&self, session_token: &String) -> Result<(), WebeAuthError> {
-    match self.db_conn_pool.get() {
-      Ok(connection) => {
-        // TODO:  Make sure the requesting Session has permission to delete this account
-        match session_api::delete_session(&connection, session_token) {
-          Ok(_) => return Ok(()),
-          Err(err) => return Err(WebeAuthError::SessionApiError(err)),
-        }
+  pub fn send_verify_email(&self, account: &Account) -> Result<(), AuthError> {
+    match &account.verify_code {
+      Some(code) => {
+        let email_builder = Email::builder()
+          .to(("webewizard@gmail.com", "WebeWizard"))
+          .from(("admin@webewizard.com", "WebeWizard.com Registration"))
+          .subject("WebeWizard.com Account Verification")
+          .text(format!("Verify Code: {}", code));
+        let _result = self.email_manager.send_email(email_builder)?;
+        return Ok(());
       }
-      Err(err) => return Err(WebeAuthError::DBPoolError(err)),
+      None => return Err(AuthError::OtherError),
     }
+  }
+}
+
+impl<'w> AuthManager for WebeAuth<'w> {
+  // *ACCOUNT*
+  fn create_account(&self, username: String, password: String) -> Result<Account, AuthError> {
+    // create account model
+    let id = self.new_id()?;
+    let account = Account::new(id, username, password)?;
+    // save to database
+    db::AccountApi::insert(&self.db_manager, &account)?;
+    // send verification email
+    self.send_verify_email(&account)?;
+    return Ok(account);
+  }
+
+  fn reset_verification(&self, email_address: &String, pass: &String) -> Result<(), AuthError> {
+    // generate a new code and timeout
+    match utility::new_verify_code() {
+      Ok(new_verify) => {
+        // get account from db matching email
+        let account = db::AccountApi::find_by_email(&self.db_manager, email_address)?;
+        // check password
+        account.check_pass(pass)?;
+        // update code and timeout  database
+        db::AccountApi::reset_verification(&self.db_manager, &account.id, new_verify)?;
+        // get the updated account object from db
+        // TODO: Maybe one day mariadb will support UPDATE...RETURNING syntax
+        let updated_account = db::AccountApi::find(&self.db_manager, &account.id)?;
+        // send verification email
+        self.send_verify_email(&updated_account)?;
+        return Ok(());
+      }
+      Err(_err) => return Err(AuthError::OtherError),
+    }
+  }
+
+  fn verify_account(
+    &self,
+    email_address: &String,
+    pass: &String,
+    code: &String,
+  ) -> Result<Session, AuthError> {
+    // get account from db matching email
+    let account = db::AccountApi::find_by_email(&self.db_manager, email_address)?;
+    // check password
+    account.check_pass(pass)?;
+    // check verify_timeout
+    // check verify_code
+    // save updated verification to db.
+    db::AccountApi::verify(&self.db_manager, &account.id, code)?;
+    // log in the account and return valid session
+    let updated_account = db::AccountApi::find(&self.db_manager, &account.id)?;
+    return Ok(updated_account);
+  }
+
+  // TODO: Reset password
+
+  fn delete_account(&self, account: Account) -> Result<(), AuthError> {
+    db::AccountApi::delete(&self.db_manager, account)?;
+    return Ok(());
+  }
+
+  // *SESSION*
+  fn login(&self, email_address: &String, pass: &String) -> Result<Session, AuthError> {
+    unimplemented!()
+  }
+
+  fn logout(&self, account_id: &u64) -> Result<(), AuthError> {
+    unimplemented!()
   }
 }

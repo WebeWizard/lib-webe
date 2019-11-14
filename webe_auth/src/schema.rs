@@ -1,10 +1,9 @@
 table! {
     webe_accounts (id) {
-        id -> Binary,
+        id -> Unsigned<Bigint>,
         email -> Varchar,
         secret -> Tinytext,
         secret_timeout -> Unsigned<Integer>,
-        verified -> Bool,
         verify_code -> Nullable<Char>,
         verify_timeout -> Nullable<Unsigned<Integer>>,
     }
@@ -13,7 +12,7 @@ table! {
 table! {
     webe_sessions (token) {
         token -> Char,
-        account_id -> Binary,
+        account_id -> Unsigned<Bigint>,
         timeout -> Unsigned<Integer>,
     }
 }
