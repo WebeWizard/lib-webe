@@ -7,7 +7,7 @@ use limit_read::LimitRead;
 use crate::constants::{MAX_HEADER_SIZE, MAX_REQUEST_SIZE};
 
 pub struct Request<'r> {
-  pub size: usize,
+  pub total_size: usize,
   pub method: String,
   pub uri: String,
   pub headers: HashMap<String, String>,
@@ -82,7 +82,7 @@ impl<'r> Request<'r> {
                   }
                 }
                 return Ok(Request {
-                  size: request_size,
+                  total_size: request_size,
                   method: method.to_uppercase().to_string(),
                   uri: uri.to_string(),
                   headers: headers,

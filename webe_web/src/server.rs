@@ -181,7 +181,7 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
 
                     // TODO: move respnder.validate() here
 
-                    // use a trait object because the exact reader type is unknown at compile time
+                    // use a trait object because the final reader type is unknown at compile time
                     let mut body_reader: Box<dyn BufRead + 's> = Box::new(buf_reader);
 
                     // using transfer encodings on the body?

@@ -1,6 +1,6 @@
+use crate::AuthManager;
 use crate::WebeAuth;
 use webe_web::request::Request;
-use webe_web::responders::static_message::StaticResponder;
 use webe_web::responders::Responder;
 use webe_web::response::Response;
 use webe_web::validation::Validation;
@@ -18,7 +18,7 @@ pub struct LoginForm {
 }
 
 pub struct LoginResponder<'w> {
-  auth_manager: &'w WebeAuth,
+  auth_manager: &'w WebeAuth<'w>,
 }
 
 impl<'w> LoginResponder<'w> {
@@ -34,7 +34,7 @@ impl<'w> Responder for LoginResponder<'w> {
   fn build_response(
     &self,
     request: &mut Request,
-    params: &HashMap<String, String>,
+    _params: &HashMap<String, String>,
     _validation: Validation,
   ) -> Result<Response, u16> {
     match &mut request.message_body {
@@ -46,7 +46,6 @@ impl<'w> Responder for LoginResponder<'w> {
                 match serde_json::to_string(&session) {
                   Ok(body) => {
                     let mut response = Response::new(200);
-                    dbg!(&body);
                     response
                       .headers
                       .insert("Content-Type".to_owned(), "application/json".to_owned());
@@ -74,7 +73,6 @@ impl<'w> Responder for LoginResponder<'w> {
       None => { /* fall down into 401 response */ }
     }
     // TODO: Have common response code responses be constants
-    let static_responder = StaticResponder::from_standard_code(401);
-    return static_responder.build_response(request, params, None);
+    return Err(401);
   }
 }

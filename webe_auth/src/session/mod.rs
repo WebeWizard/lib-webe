@@ -1,6 +1,7 @@
 use crate::account::Account;
 use crate::constants::SECONDS_30_DAYS;
 use crate::schema::webe_sessions;
+use crate::AuthError;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -14,6 +15,8 @@ use serde::Serialize;
 #[table_name = "webe_sessions"]
 pub struct Session {
   pub token: String,
+  #[serde(rename = "accountId")]
+  #[serde(serialize_with = "crate::utility::serialize_as_string")]
   pub account_id: u64,
   timeout: u32, // based on last time credentials were provided
 }
@@ -21,6 +24,12 @@ pub struct Session {
 #[derive(Debug)]
 pub enum SessionError {
   OtherError,
+}
+
+impl From<SessionError> for AuthError {
+  fn from(err: SessionError) -> AuthError {
+    AuthError::SessionError(err)
+  }
 }
 
 impl Session {

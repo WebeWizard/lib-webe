@@ -35,7 +35,7 @@ use std::sync::Mutex;
 use account::Account;
 use db::DBApiError;
 use email::{EmailApi, EmailError};
-use session::Session;
+use session::{Session, SessionError};
 
 #[derive(Debug)]
 pub enum AuthError {
@@ -43,6 +43,7 @@ pub enum AuthError {
   DBError(DBApiError),
   EmailError(EmailError),
   OtherError,
+  SessionError(SessionError),
 }
 
 pub trait AuthManager {
@@ -65,7 +66,7 @@ pub trait AuthManager {
   // *SESSION*
   fn login(&self, email_address: &String, pass: &String) -> Result<Session, AuthError>;
 
-  fn logout(&self, account_id: &u64) -> Result<(), AuthError>;
+  fn logout(&self, token: &String) -> Result<(), AuthError>;
 }
 
 pub struct WebeAuth<'w> {
@@ -147,13 +148,15 @@ impl<'w> AuthManager for WebeAuth<'w> {
     let account = db::AccountApi::find_by_email(&self.db_manager, email_address)?;
     // check password
     account.check_pass(pass)?;
-    // check verify_timeout
-    // check verify_code
-    // save updated verification to db.
+    // check verify code valid
+    account.check_verify(Some(code))?;
+    // complete verify using db
     db::AccountApi::verify(&self.db_manager, &account.id, code)?;
-    // log in the account and return valid session
-    let updated_account = db::AccountApi::find(&self.db_manager, &account.id)?;
-    return Ok(updated_account);
+    // create a new session for the account
+    let session = Session::new(&account.id)?;
+    // save session to db
+    db::SessionApi::insert(&self.db_manager, &session)?;
+    return Ok(session);
   }
 
   // TODO: Reset password
@@ -165,10 +168,22 @@ impl<'w> AuthManager for WebeAuth<'w> {
 
   // *SESSION*
   fn login(&self, email_address: &String, pass: &String) -> Result<Session, AuthError> {
-    unimplemented!()
+    // get account from db matching email
+    let account = db::AccountApi::find_by_email(&self.db_manager, email_address)?;
+    // check password
+    account.check_pass(pass)?;
+    // check account is verified
+    account.check_verify(None)?;
+    // create a new session for the account
+    let session = Session::new(&account.id)?;
+    // save session to db
+    db::SessionApi::insert(&self.db_manager, &session)?;
+    return Ok(session);
   }
 
-  fn logout(&self, account_id: &u64) -> Result<(), AuthError> {
-    unimplemented!()
+  fn logout(&self, token: &String) -> Result<(), AuthError> {
+    // delete the session from the database
+    db::SessionApi::delete(&self.db_manager, token.as_str())?;
+    return Ok(());
   }
 }

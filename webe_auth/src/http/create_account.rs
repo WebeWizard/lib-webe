@@ -1,3 +1,4 @@
+use crate::AuthManager;
 use crate::WebeAuth;
 use webe_web::request::Request;
 use webe_web::responders::static_message::StaticResponder;
@@ -16,7 +17,7 @@ pub struct CreateAccountForm {
 }
 
 pub struct CreateAccountResponder<'w> {
-  auth_manager: &'w WebeAuth,
+  auth_manager: &'w WebeAuth<'w>,
 }
 
 impl<'w> CreateAccountResponder<'w> {
@@ -63,7 +64,6 @@ impl<'w> Responder for CreateAccountResponder<'w> {
       None => { /* fall down into 500 response */ }
     }
     // TODO: Have common code-based responses be constants
-    let static_responder = StaticResponder::from_standard_code(500);
-    return static_responder.build_response(request, params, None);
+    return Err(500);
   }
 }

@@ -1,15 +1,17 @@
 extern crate dotenv;
 
 extern crate webe_auth;
+extern crate webe_id;
 extern crate webe_web;
 
 use std::collections::HashMap;
 use std::env;
 use std::net::Ipv4Addr;
+use std::time::{Duration, SystemTime};
 
-use webe_auth::http::{create_account, login, verify_account};
+use webe_auth::http::{create_account, login, logout, verify_account};
 use webe_web::request::Request;
-use webe_web::responders::{file::FileResponder, static_message::StaticResponder, Responder};
+use webe_web::responders::{file::FileResponder, Responder};
 use webe_web::response::Response;
 use webe_web::server::{Route, Server};
 use webe_web::validation::Validation;
@@ -33,14 +35,24 @@ fn main() {
   print!("Building Database Connection Pool......");
   let db_connect_string =
     env::var("DATABASE_URL").expect("Failed to load DB Connect string from .env");
-  let db_pool = webe_auth::database::create_db_pool(db_connect_string)
+  let db_manager = webe_auth::db::new_manager(db_connect_string)
     .expect("Failed to create Database connection pool");
   println!("Done");
 
+  // create the unique ID factory
+  let node_id = 0u8;
+  let epoch = SystemTime::UNIX_EPOCH
+    .checked_add(Duration::from_millis(1546300800000)) // 01-01-2019 12:00:00 AM GMT
+    .expect("failed to create custom epoch");
+  let id_factory = std::sync::Mutex::new(
+    webe_id::WebeIDFactory::new(epoch, node_id).expect("Failed to create ID generator"),
+  );
+
   // create the auth manager
   let auth_manager = webe_auth::WebeAuth {
-    db_conn_pool: db_pool,
-    email_conn_pool: email_pool,
+    db_manager: db_manager,
+    email_manager: email_pool,
+    id_factory: &id_factory,
   };
 
   // create the web server
@@ -98,9 +110,8 @@ fn main() {
   let create_account_responder = create_account::CreateAccountResponder::new(&auth_manager);
   web_server.add_route(create_account_route, create_account_responder);
 
-  let verify_account_route = Route::new("GET", "/account/verify/<token>");
-  let verify_account_responder =
-    verify_account::VerifyAccountResponder::new(&auth_manager, "<token>");
+  let verify_account_route = Route::new("POST", "/account/verify");
+  let verify_account_responder = verify_account::VerifyAccountResponder::new(&auth_manager);
   web_server.add_route(verify_account_route, verify_account_responder);
 
   // -- -- session
@@ -108,7 +119,9 @@ fn main() {
   let login_responder = login::LoginResponder::new(&auth_manager);
   web_server.add_route(login_route, login_responder);
 
-  // -- -- user
+  let logout_route = Route::new("POST", "/logout");
+  let logout_responder = logout::LogoutResponder::new(&auth_manager);
+  web_server.add_route(logout_route, logout_responder);
 
   println!("Done");
   // start the server

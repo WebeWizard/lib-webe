@@ -27,7 +27,7 @@ pub enum AccountError {
 }
 
 #[derive(Debug)]
-enum VerifyError {
+pub enum VerifyError {
   BadCode,
   AlreadyVerified,
   TimeoutExpired,
@@ -71,24 +71,24 @@ impl Account {
 
   pub fn check_pass(&self, test_pass: &String) -> Result<(), AccountError> {
     // hash the test_pass and see if it matches the account's secret
-    match bcrypt::hash(test_pass, DEFAULT_COST) {
-      Ok(hash) => {
-        if hash == self.secret {
+    match bcrypt::verify(test_pass.as_str(), self.secret.as_str()) {
+      Ok(result) => {
+        if result {
           return Ok(());
         } else {
           return Err(AccountError::BadPass);
         }
       }
-      _ => return Err(AccountError::BadHash),
+      Err(_) => return Err(AccountError::BadHash),
     }
   }
 
   // check a code for an unverified account, or check to see if an account is already verified.
-  pub fn check_verify(&self, test_code: Option<String>) -> Result<(), AccountError> {
+  pub fn check_verify(&self, test_code: Option<&String>) -> Result<(), AccountError> {
     match test_code {
       Some(test_code) => {
         // check if account is already verified
-        match self.verify_code {
+        match &self.verify_code {
           Some(existing_code) => {
             // check matching code
             if existing_code != test_code {
@@ -114,8 +114,8 @@ impl Account {
       }
       None => {
         // check to see if account is already verified.
-        match self.verify_code {
-          Some(code) => return Err(AccountError::NotVerified),
+        match &self.verify_code {
+          Some(_code) => return Err(AccountError::NotVerified),
           None => return Ok(()),
         }
       }
