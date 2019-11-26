@@ -50,6 +50,7 @@ pub trait AuthManager {
   // *ACCOUNT*
   fn create_account(&self, username: String, password: String) -> Result<Account, AuthError>;
 
+  fn find_by_email(&self, email_address: &String) -> Result<Account, AuthError>;
   fn reset_verification(&self, email_address: &String, pass: &String) -> Result<(), AuthError>;
 
   fn verify_account(
@@ -114,6 +115,11 @@ impl<'w> AuthManager for WebeAuth<'w> {
     db::AccountApi::insert(&self.db_manager, &account)?;
     // send verification email
     self.send_verify_email(&account)?;
+    return Ok(account);
+  }
+
+  fn find_by_email(&self, email_address: &String) -> Result<Account, AuthError> {
+    let account = db::AccountApi::find_by_email(&self.db_manager, email_address)?;
     return Ok(account);
   }
 

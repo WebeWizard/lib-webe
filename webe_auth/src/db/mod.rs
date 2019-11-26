@@ -33,7 +33,10 @@ impl From<r2d2::Error> for DBApiError {
 
 impl From<DieselError> for DBApiError {
   fn from(err: DieselError) -> DBApiError {
-    DBApiError::OtherError(err)
+    match err {
+      DieselError::NotFound => DBApiError::NotFound,
+      _ => DBApiError::OtherError(err),
+    }
   }
 }
 
@@ -142,6 +145,8 @@ impl AccountApi for DBManager {
 pub trait SessionApi {
   fn insert(&self, session: &Session) -> Result<(), DBApiError>;
 
+  fn find(&self, token: &str) -> Result<Session, DBApiError>;
+
   fn delete(&self, token: &str) -> Result<(), DBApiError>;
 }
 
@@ -164,6 +169,12 @@ impl SessionApi for DBManager {
         }
       }
     }
+  }
+
+  fn find(&self, session_token: &str) -> Result<Session, DBApiError> {
+    let conn = self.get()?;
+    let session = webe_sessions.find(session_token).first(&conn)?;
+    return Ok(session);
   }
 
   fn delete(&self, session_token: &str) -> Result<(), DBApiError> {
