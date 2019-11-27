@@ -4,17 +4,13 @@ extern crate webe_auth;
 extern crate webe_id;
 extern crate webe_web;
 
-use std::collections::HashMap;
 use std::env;
 use std::net::Ipv4Addr;
 use std::time::{Duration, SystemTime};
 
 use webe_auth::http::{create_account, login, logout, verify_account};
-use webe_web::request::Request;
-use webe_web::responders::{file::FileResponder, options::OptionsResponder, Responder};
-use webe_web::response::Response;
+use webe_web::responders::{file::FileResponder, options::OptionsResponder};
 use webe_web::server::{Route, Server};
-use webe_web::validation::Validation;
 
 fn main() {
   // load environment
