@@ -11,7 +11,7 @@ use std::time::{Duration, SystemTime};
 
 use webe_auth::http::{create_account, login, logout, verify_account};
 use webe_web::request::Request;
-use webe_web::responders::{file::FileResponder, Responder};
+use webe_web::responders::{file::FileResponder, options::OptionsResponder, Responder};
 use webe_web::response::Response;
 use webe_web::server::{Route, Server};
 use webe_web::validation::Validation;
@@ -70,32 +70,12 @@ fn main() {
 
   // add routes
   // -- OPTIONS for preflight request
-  struct OptionsResponder;
-  impl Responder for OptionsResponder {
-    fn build_response(
-      &self,
-      _request: &mut Request,
-      _params: &HashMap<String, String>,
-      _validation: Validation,
-    ) -> Result<Response, u16> {
-      let mut response = Response::new(204);
-      response.headers.insert(
-        "Access-Control-Allow-Origin".to_owned(),
-        "http://localhost:1234".to_owned(),
-      );
-      response.headers.insert(
-        "Access-Control-Allow-Methods".to_owned(),
-        "POST, GET, OPTIONS".to_owned(),
-      );
-      response.headers.insert(
-        "Access-Control-Allow-Headers".to_owned(),
-        "content-type".to_owned(),
-      );
-      return Ok(response);
-    }
-  }
   let options_route = Route::new("OPTIONS", "/<dump>");
-  let options_responder = OptionsResponder;
+  let options_responder = OptionsResponder::new(
+    "http://localhost:1234".to_owned(),
+    "POST, GET, OPTIONS".to_owned(),
+    "content-type".to_owned(),
+  );
   web_server.add_route(options_route, options_responder);
 
   // -- static files
