@@ -75,6 +75,7 @@ impl AccountApi for DBManager {
       Ok(_) => return Ok(()),
       Err(err) => {
         // check for unique constraint (currently only on PK and email)
+        // TODO: do I really need to hoist this error?  can I just match on the diesel error directly in a higher function?
         match err {
           DieselError::DatabaseError(dberr, _) => match dberr {
             DatabaseErrorKind::UniqueViolation => return Err(DBApiError::AlreadyExists),
