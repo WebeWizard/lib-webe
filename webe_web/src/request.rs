@@ -10,7 +10,8 @@ pub struct Request<'r> {
   pub total_size: usize,
   pub method: String,
   pub uri: String,
-  pub headers: HashMap<String, String>,
+  pub headers: HashMap<String, String>, // TODO: maybe this should be a Vec, or a buffer, or a linked list
+  // I can't imagine a request would have so many headers
   pub message_body: Option<Box<dyn BufRead + 'r>>,
 }
 

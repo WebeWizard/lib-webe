@@ -71,7 +71,12 @@ impl FileResponder {
 
 impl Responder for FileResponder {
   // tests if the provided path exists
-  fn validate(&self, _request: &Request, params: &HashMap<String, String>) -> ValidationResult {
+  fn validate(
+    &self,
+    _request: &Request,
+    params: &HashMap<String, String>,
+    _validation: Validation,
+  ) -> ValidationResult {
     match params.get(&self.path_param) {
       Some(path_string) => {
         // build the full path

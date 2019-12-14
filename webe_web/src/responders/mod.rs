@@ -12,8 +12,14 @@ use super::validation::ValidationResult;
 
 pub trait Responder: Send + Sync {
   // tests if the request is worth responding to. Ok(status_code) or Err(status_code)
-  fn validate(&self, _request: &Request, _params: &HashMap<String, String>) -> ValidationResult {
-    Ok(None)
+  // accepts a Validation to support things like a wrapped "Secure/LoggedIn responder"
+  fn validate(
+    &self,
+    _request: &Request,
+    _params: &HashMap<String, String>,
+    validation: Validation,
+  ) -> ValidationResult {
+    Ok(validation) // default is to forward the validation along
   }
 
   // NOTE: Request is mutable!  Mostly this is so the message bufreader can be read from.

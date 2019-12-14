@@ -160,6 +160,8 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                 match routes.get(route) {
                   Some(responder) => {
                     // process any route parameters
+                    // TODO: maybe params should be a Vec? Or a buffer? Or a linked list?
+                    // I can't imagine a request having too many params
                     let mut params = HashMap::<String, String>::new();
                     let request_uri_parts: Vec<&str> = request.uri.split('/').collect();
                     let route_uri_parts: Vec<&str> = route.uri.split('/').collect();
@@ -236,7 +238,7 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                     }
 
                     // TODO: move validate to before body reader is built
-                    match responder.validate(&request, &params) {
+                    match responder.validate(&request, &params, None) {
                       Ok(validation_result) => {
                         match responder.build_response(&mut request, &params, validation_result) {
                           Ok(mut response) => {
