@@ -23,6 +23,7 @@ pub struct Session {
 
 #[derive(Debug)]
 pub enum SessionError {
+  SessionExpired,
   OtherError,
 }
 

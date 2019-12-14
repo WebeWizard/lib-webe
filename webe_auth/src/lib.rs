@@ -65,6 +65,8 @@ pub trait AuthManager {
   fn delete_account(&self, account: Account) -> Result<(), AuthError>;
 
   // *SESSION*
+  fn find_valid_session(&self, token: &String) -> Result<Session, AuthError>;
+
   fn login(&self, email_address: &String, pass: &String) -> Result<Session, AuthError>;
 
   fn logout(&self, token: &String) -> Result<(), AuthError>;
@@ -174,6 +176,21 @@ impl<'w> AuthManager for WebeAuth<'w> {
   }
 
   // *SESSION*
+  fn find_valid_session(&self, token: &String) -> Result<Session, AuthError> {
+    let session = db::SessionApi::find(&self.db_manager, token.as_str())?;
+    match session.is_expired() {
+      // TODO: make session.is_valid or something.  SessionError should contain a Timeout variant
+      Ok(expired) => {
+        if expired {
+          return Err(AuthError::SessionError(SessionError::SessionExpired));
+        } else {
+          return Ok(session);
+        }
+      }
+      Err(e) => return Err(AuthError::SessionError(e)),
+    }
+  }
+
   fn login(&self, email_address: &String, pass: &String) -> Result<Session, AuthError> {
     // get account from db matching email
     let account = db::AccountApi::find_by_email(&self.db_manager, email_address)?;
