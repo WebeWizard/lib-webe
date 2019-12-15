@@ -76,8 +76,6 @@ pub struct WebeAuth<'w> {
   pub db_manager: db::DBManager,
   pub email_manager: email::EmailManager,
   pub id_factory: &'w Mutex<webe_id::WebeIDFactory>,
-  // TODO: this is a pretty complex type.  Intent is to share factory amongst parts of the app, not just auth.
-  // nothing in the library currently makes use of this, I added it for possible future logging.
 }
 
 impl<'w> WebeAuth<'w> {
