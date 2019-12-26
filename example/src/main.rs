@@ -70,7 +70,7 @@ fn main() {
   let options_responder = OptionsResponder::new(
     "http://localhost:1234".to_owned(),
     "POST, GET, OPTIONS".to_owned(),
-    "content-type".to_owned(),
+    "content-type, x-webe-token".to_owned(),
   );
   web_server.add_route(options_route, options_responder);
 
