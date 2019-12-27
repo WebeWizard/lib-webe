@@ -18,7 +18,7 @@ pub struct Session {
   #[serde(rename = "accountId")]
   #[serde(serialize_with = "crate::utility::serialize_as_string")]
   pub account_id: u64,
-  timeout: u32, // based on last time credentials were provided
+  pub timeout: u32, // seconds since unix epoch, based on last time credentials were provided
 }
 
 #[derive(Debug)]
@@ -49,10 +49,10 @@ impl Session {
   }
 
   // check if the timeout has expired
-  pub fn is_expired(&self) -> Result<bool, SessionError> {
+  pub fn is_expired(&self) -> bool {
     match SystemTime::now().duration_since(UNIX_EPOCH) {
-      Ok(n) => Ok((n.as_secs() as u32) > self.timeout),
-      Err(_) => return Err(SessionError::OtherError),
+      Ok(n) => (n.as_secs() as u32) > self.timeout,
+      Err(_) => false,
     }
   }
 }

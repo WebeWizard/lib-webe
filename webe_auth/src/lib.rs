@@ -168,6 +168,7 @@ impl<'w> AuthManager for WebeAuth<'w> {
 
   // TODO: Reset password
 
+  // TODO: should this just take the account id? or a valid session?
   fn delete_account(&self, account: Account) -> Result<(), AuthError> {
     db::AccountApi::delete(&self.db_manager, account)?;
     return Ok(());
@@ -176,16 +177,10 @@ impl<'w> AuthManager for WebeAuth<'w> {
   // *SESSION*
   fn find_valid_session(&self, token: &String) -> Result<Session, AuthError> {
     let session = db::SessionApi::find(&self.db_manager, token.as_str())?;
-    match session.is_expired() {
-      // TODO: make session.is_valid or something.  SessionError should contain a Timeout variant
-      Ok(expired) => {
-        if expired {
-          return Err(AuthError::SessionError(SessionError::SessionExpired));
-        } else {
-          return Ok(session);
-        }
-      }
-      Err(e) => return Err(AuthError::SessionError(e)),
+    if session.is_expired() {
+      return Err(AuthError::SessionError(SessionError::SessionExpired));
+    } else {
+      return Ok(session);
     }
   }
 
