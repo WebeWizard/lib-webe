@@ -47,7 +47,7 @@ impl<'w, R: Responder> Responder for SecureResponder<'w, R> {
           }
           Err(error) => match error {
             // TODO: match session error's timeout vs other (like the system clock error)
-            AuthError::SessionError(s_error) => return Err(Status::from_standard_code(403)),
+            AuthError::SessionError(_error) => return Err(Status::from_standard_code(403)),
             _ => return Err(Status::from_standard_code(500)),
           },
         }
