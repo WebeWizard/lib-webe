@@ -1,5 +1,6 @@
 pub mod file;
 pub mod options;
+pub mod spa;
 pub mod static_message;
 
 use std::collections::HashMap;
