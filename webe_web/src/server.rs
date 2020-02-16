@@ -1,4 +1,5 @@
 use crossbeam_utils::thread;
+use std::cmp::Ordering::*;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, BufWriter, Read};
 use std::net::{Ipv4Addr, TcpListener, TcpStream};
@@ -96,46 +97,43 @@ fn find_best_route<'a>(request: &Request, routes: &'a Arc<RouteMap>) -> Option<&
   // ~~ find the best responder ~~
   // non-terminal route params WILL NOT contain more than one request uri part
   // terminal route params WILL contain the remainder of the request uri
-  let request_uri_parts: Vec<&str> = request.uri.split('/').collect();
-  let request_uri_length = request_uri_parts.len();
+  let request_parts: Vec<&str> = request.uri.split('/').collect();
   // only keys with matching method
-  let keys: Vec<&Route> = routes
+  match routes
     .keys()
-    .filter(|key| key.method == request.method)
-    .collect();
-  let mut matched = false;
-  match keys.iter().max_by_key(|route| {
-    let route_uri_parts: Vec<&str> = route.uri.split('/').collect();
-    // compare length
-    let route_length = route_uri_parts.len();
-    if route_length > request_uri_length {
-      return 0;
-    }
-    // find the one with the most matching parts
-    let mut match_size = 0;
-    for part in &request_uri_parts {
-      if part == &route_uri_parts[match_size] || route_uri_parts[match_size].contains('<') {
-        match_size += 1;
-        if match_size == route_length {
-          break;
-        } // full match
-      } else {
-        // uri doesn't match
-        match_size = 0;
-        break;
-      }
-    }
-    if match_size > 0 {
-      matched = true
-    } // use this to determine if no routes found
-    return match_size;
-  }) {
-    Some(key) => {
-      if !matched {
+    .filter_map(|route| {
+      if route.method != request.method {
         return None;
-      };
-      return Some(key);
-    }
+      }
+      let route_parts: Vec<&str> = route.uri.split('/').collect();
+      // compare length. route cannot match request with less parts
+      if route_parts.len() > request_parts.len() {
+        return None;
+      }
+      // find the one with the most matching parts
+      let mut match_size = 0;
+      let mut first_wild = 0;
+      for i in 0..request_parts.len() {
+        if request_parts[i] == route_parts[i] || route_parts[i].contains('<') {
+          match_size = i + 1;
+          if first_wild == 0 && route_parts[i].contains('<') {
+            first_wild = i + 1;
+          }
+          if (i + 1) == route_parts.len() {
+            break;
+          }
+        } else {
+          return None;
+        } // uri doesn't match
+      }
+      return Some((route, match_size, first_wild));
+    })
+    .max_by(|x, y| match (x.1).cmp(&y.1) {
+      Less => return Less,
+      Greater => return Greater,
+      Equal => ((x.2).cmp(&y.2)).reverse(),
+    }) {
+    Some((route, _, _)) => return Some(route),
     None => return None,
   }
 }
@@ -163,7 +161,7 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                     // TODO: maybe params should be a Vec? Or a buffer? Or a linked list?
                     // I can't imagine a request having too many params
                     let mut params = HashMap::<String, String>::new();
-                    let request_uri_parts: Vec<&str> = request.uri.split('/').collect();
+                    let request_parts: Vec<&str> = request.uri.split('/').collect();
                     let route_uri_parts: Vec<&str> = route.uri.split('/').collect();
                     let part_length = route_uri_parts.len();
                     for i in 0..part_length {
@@ -173,9 +171,9 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                       if route_uri_parts[i].contains('<') {
                         let name = route_uri_parts[i].to_owned();
                         let value = if i == part_length - 1 {
-                          request_uri_parts[i..].join("/")
+                          request_parts[i..].join("/")
                         } else {
-                          request_uri_parts[i].to_owned()
+                          request_parts[i].to_owned()
                         };
                         params.insert(name, value);
                       }
