@@ -24,7 +24,7 @@ fn auth_test() {
   // create the database pool
   print!("Building Database Connection Pool......");
   let db_connect_string =
-    env::var("DATABASE_URL").expect("Failed to load DB Connect string from .env");
+    env::var("AUTH_DATABASE_URL").expect("Failed to load DB Connect string from .env");
   let db_pool = webe_auth::db::new_manager(db_connect_string)
     .expect("Failed to create Database connection pool");
   println!("Done");
