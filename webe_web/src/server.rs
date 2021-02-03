@@ -75,7 +75,6 @@ impl<'r> Server<'r> {
 
   // starts the server, blocks the thread while the server is running
   pub fn start(&self) -> Result<(), ServerError> {
-    println!("starting the server");
     match thread::scope(|s| {
       for stream in self.listener.incoming() {
         match stream {
@@ -150,7 +149,8 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
         let mut buf_reader = BufReader::new(stream);
         match Request::new(&mut buf_reader) {
           Ok(mut request) => {
-            println!("Processing Request. URI: {:?}", request.uri);
+            // TODO: figure out logging
+            // println!("Processing Request. URI: {:?}", request.uri);
 
             // use best route to respond to request
             match find_best_route(&request, routes) {
@@ -249,7 +249,8 @@ fn process_stream<'s>(stream: &'s TcpStream, routes: &Arc<RouteMap>) -> Result<(
                               Ok(()) => {
                                 keep_alive = response.keep_alive;
                                 //keep_alive = false;
-                                print!("Done");
+                                // TODO: figure out logging
+                                // print!("Done");
                               }
                               Err(_error) => return Err(ServerError::InternalError),
                             }
