@@ -30,7 +30,7 @@ pub enum ArgError {
   NoArgOpt,                   // There is no definition for this argument.
   ArgNotFound,                // Not found in env args
   ValueNotFound,              // found arg but no value
-  Invalid,                    // validation func returned false
+  InvalidValue,               // validation func returned false
   Unexpected(Option<String>), // found in env args but no ArgOpt found
 }
 
@@ -70,7 +70,7 @@ impl Args {
                     if validation_func(val.as_str()) {
                       return Ok(Some(val));
                     } else {
-                      return Err(ArgError::Invalid);
+                      return Err(ArgError::InvalidValue);
                     }
                   }
                   None => return Ok(Some(val)),

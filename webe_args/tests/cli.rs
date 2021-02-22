@@ -1,10 +1,10 @@
 use std::env;
-use webe_args::args::{ArgOpts, Args};
+use webe_args::args::{ArgError, ArgOpts, Args};
 
 // NOTE:  we have to circumvent the built-in cargo test harness
 // in order to pass command line arguments into the test
 // NOTE:  Run this cargo test with the following command:
-// cargo test -p webe_args --test cli -- --nocapture -- -- --with_value this_is_value --as_flag ignore_this
+// cargo test -p webe_args --test cli -- --nocapture -- -- --with_value this_is_value --as_flag ignore_this -s --bad_val WebeIsBad --good_val "webe is great"
 fn main() {
   println!("Command Line Arguments:");
   println!("{:?}", std::env::args().collect::<Vec<String>>());
@@ -23,6 +23,11 @@ fn main() {
   // test getting arguments with short name
   println!("Running Test:  get_short()...");
   get_short();
+  println!("Ok");
+
+  // test making sure a value passes validatoin
+  println!("Running Test:  with_validation()...");
+  with_validation();
   println!("Ok");
 }
 
@@ -54,11 +59,29 @@ fn as_flag() {
   }
 }
 
-#[test]
-fn is_required() {}
-
-#[test]
-fn validation() {}
+fn with_validation() {
+  let args = default_args();
+  match args.get("bad_val") {
+    Ok(_) => panic!("The value for argument 'bad_val' should not have passed validation"),
+    Err(err) => match err {
+      ArgError::InvalidValue => {}
+      _ => panic!(
+        "Error getting argument from command line 'bad_val': {:?}",
+        err
+      ),
+    },
+  }
+  match args.get("good_val") {
+    Ok(value_opt) => match value_opt {
+      Some(value) => {}
+      None => panic!("The argument 'good_val' should have provided a value"),
+    },
+    Err(err) => panic!(
+      "Eror getting argument 'good_val' from command line: {:?}",
+      err
+    ),
+  }
+}
 
 fn get_short() {
   let args = default_args();
@@ -108,10 +131,20 @@ fn default_args() -> Args {
     },
   );
   args.add(
-    "with_validation".to_owned(),
+    "bad_val".to_owned(),
     ArgOpts {
-      short: Some("v".to_owned()),
-      description: Some("Test of argument with a value that requires simple validation".to_owned()),
+      short: None,
+      description: Some("Test of argument with a value that should fail validation".to_owned()),
+      is_required: false,
+      is_flag: false,
+      validation: Some(Box::new(|input| input == "webe is great")),
+    },
+  );
+  args.add(
+    "good_val".to_owned(),
+    ArgOpts {
+      short: None,
+      description: Some("Test of argument with a value that should pass validation".to_owned()),
       is_required: false,
       is_flag: false,
       validation: Some(Box::new(|input| input == "webe is great")),
