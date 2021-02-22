@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "example",
+  "webe_args",
   "webe_auth",
   "webe_web",
 ]
