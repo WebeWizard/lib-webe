@@ -29,9 +29,9 @@ pub fn format_as_short(name: &str) -> String {
 pub enum ArgError {
   NoArgOpt,                   // There is no definition for this argument.
   ArgNotFound,                // Not found in env args
+  RequiredNotFound,           // Required Arg not found in args
   ValueNotFound,              // found arg but no value
   InvalidValue,               // validation func returned false
-  Unexpected(Option<String>), // found in env args but no ArgOpt found
 }
 
 pub struct Args {
@@ -78,11 +78,31 @@ impl Args {
                 None => return Err(ArgError::ValueNotFound),
               }
             }
+          },
+          None => {
+            if argopt.is_required {
+              return Err(ArgError::RequiredNotFound);
+            }
+              else { return Err(ArgError::ArgNotFound); }
           }
-          None => return Err(ArgError::ArgNotFound),
         }
       }
       None => return Err(ArgError::NoArgOpt),
+    }
+  }
+
+  // checks that all args are present and valid, otherwise panics with friendly message
+  pub fn parse_args(&self) {
+    for (name, _arg) in self.inner.iter() {
+      if let Err(err) = self.get(name) {
+        match err {
+          ArgError::RequiredNotFound => panic!("Missing required argument: {}", name),
+          ArgError::ArgNotFound => {}, // arg wasn't found, but it wasn't required anyways, so move along.
+          ArgError::InvalidValue => panic!("An invalid value was provided for argument: {}", name),
+          ArgError::ValueNotFound => panic!("Expected a value for argument: {}", name),
+          ArgError::NoArgOpt => panic!("This error shouldn't be possible here"),
+        }
+      }
     }
   }
 }
