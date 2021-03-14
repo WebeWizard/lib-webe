@@ -1,6 +1,6 @@
 use std::panic::{self, AssertUnwindSafe};
 
-use webe_args::args::{ArgError, ArgOpts, Args};
+use webe_args::{ArgError, ArgOpts, Args};
 
 // NOTE:  we have to circumvent the built-in cargo test harness
 // in order to pass command line arguments into the test
@@ -38,7 +38,7 @@ fn main() {
   println!("Ok");
 
   // test finding missing required arguments
-  print!("Running Test:  missing_required");
+  print!("Running Test:  missing_required()...");
   missing_required();
   println!("Ok");
 
