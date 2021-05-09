@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::Request;
 use super::Responder;
 use super::Response;
@@ -35,13 +33,13 @@ impl Responder for SPAResponder {
   fn validate(
     &self,
     request: &Request,
-    _params: &HashMap<String, String>,
+    _params: &Vec<(String, String)>,
     validation: Validation,
   ) -> ValidationResult {
     // pass on to the internal file responder, but fudge the param
-    let mut fudged_params = HashMap::<String, String>::new();
+    let mut fudged_params = Vec::new();
     // param gets set to an empty string so that app_file_path becomes the complete path
-    fudged_params.insert(String::new(), self.app_file_path.clone());
+    fudged_params.push((String::new(), self.app_file_path.clone()));
     return self
       .file_responder
       .validate(request, &fudged_params, validation);
@@ -50,7 +48,7 @@ impl Responder for SPAResponder {
   fn build_response(
     &self,
     request: &mut Request,
-    params: &HashMap<String, String>,
+    params: &Vec<(String, String)>,
     validation: Validation,
   ) -> Result<Response, u16> {
     return self

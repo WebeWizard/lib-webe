@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::Request;
 use super::Responder;
 use super::Response;
@@ -25,7 +23,7 @@ impl Responder for OptionsResponder {
   fn build_response(
     &self,
     _request: &mut Request,
-    _params: &HashMap<String, String>,
+    _params: &Vec<(String, String)>,
     _validation: Validation,
   ) -> Result<Response, u16> {
     let mut response = Response::new(204);

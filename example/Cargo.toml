@@ -5,7 +5,7 @@ authors = ["WebeWizard <webewizard@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-dotenv = "0.14.1"
+dotenv = "0.15.0"
 
 webe_auth = { path = "../webe_auth" }
 webe_web = { path = "../webe_web" }

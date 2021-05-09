@@ -1,117 +1,121 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader};
-use std::net::TcpStream;
+use std::pin::Pin;
 
-use limit_read::LimitRead;
+use tokio::net::tcp::ReadHalf;
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader, AsyncReadExt};
 
-use crate::constants::{MAX_HEADER_SIZE, MAX_REQUEST_SIZE};
+use crate::constants::{MAX_REQUEST_LINE_SIZE, MAX_HEADERS_SIZE};
 
 pub struct Request<'r> {
   pub total_size: usize,
   pub method: String,
   pub uri: String,
-  pub headers: HashMap<String, String>, // TODO: maybe this should be a Vec, or a buffer, or a linked list
-  // I can't imagine a request would have so many headers
-  pub message_body: Option<Box<dyn BufRead + 'r>>,
+  pub version: String,
+  pub headers: Option<HashMap<String, String>>,
+  pub message_body: Option<Pin<Box<dyn AsyncBufRead + 'r + Send + Sync>>>,
 }
 
+#[derive(Debug)]
 pub enum RequestError {
-  ReadError,           // error reading from stream
+  IOError(std::io::Error), // io error reading from stream
+  MalformedRequestError, // generic error for un-parseable requests and requests that don't meet http standards
   DeserializeError,    // failed to turn the request data into anything meaningful
-  MaxHeaderSizeError,  // individual header is too large
+  MaxURISizeError,    // Size of URI is too large
+  MaxHeaderSizeError,  // Size of headers is too large
   MaxRequestSizeError, // request is too large
+  EncodingNotSupportedError,
+}
+
+impl From<std::io::Error> for RequestError {
+  fn from(err: std::io::Error) -> RequestError {
+      RequestError::IOError(err)
+  }
 }
 
 impl<'r> Request<'r> {
-  pub fn new(buf_reader: &mut BufReader<&TcpStream>) -> Result<Request<'r>, RequestError> {
+  pub async fn new(buf_reader: &mut BufReader<ReadHalf<'_>>) -> Result<Request<'r>, RequestError> {
     //read in the first line.  Split it into Method and URI
     let mut line = String::new();
-    match buf_reader.read_line_lim(&mut line, &MAX_HEADER_SIZE) {
-      Ok(0) => return Err(RequestError::ReadError), // read an empty line when expecting request line
+    let mut line_reader = buf_reader.take(MAX_REQUEST_LINE_SIZE as u64);
+    match line_reader.read_line(&mut line).await {
+      Ok(0) => return Err(RequestError::MalformedRequestError), // read an empty line when expecting request line
       Ok(uri_size) => {
-        let mut request_size: usize = uri_size;
-        let mut iter = line.split_whitespace();
-        match iter.next() {
-          // get method
-          Some(method) => {
-            match iter.next() {
-              // get uri
-              Some(uri) => {
-                // get headers
-                let mut headers = HashMap::<String, String>::new();
-                let lines_iter = buf_reader.lines_lim(MAX_HEADER_SIZE);
-                for line in lines_iter {
-                  match line {
-                    Ok(header) => {
-                      request_size += header.len() + 2; // technically we don't know the size of the line terminator, assume \r\n
-                      if request_size >= MAX_REQUEST_SIZE {
-                        return Err(RequestError::MaxRequestSizeError);
-                      }
-                      if header == "".to_owned() {
-                        break;
-                      } else {
-                        // TODO: assuming header is not split across multiple lines
-                        // even though allowed by https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
-                        let mut header_iter = header.split(':');
-                        match header_iter.next() {
-                          // get header name
-                          Some(header_name) => {
-                            match header_iter.next() {
-                              // get header value
-                              Some(header_value) => {
-                                headers.insert(
-                                  header_name.to_string().to_lowercase(),
-                                  header_value.trim().to_string(),
-                                );
-                              }
-                              None => return Err(RequestError::ReadError), // expected header value
-                            }
-                          }
-                          None => return Err(RequestError::ReadError), // expected header name
-                        }
-                      }
-                    }
-                    Err(error) => {
-                      match error.kind() {
-                        std::io::ErrorKind::NotFound => {
-                          // header too large
-                          return Err(RequestError::MaxHeaderSizeError);
-                        }
-                        _ => return Err(RequestError::ReadError),
-                      }
-                    }
-                  }
-                }
-                return Ok(Request {
-                  total_size: request_size,
-                  method: method.to_uppercase().to_string(),
-                  uri: uri.to_string(),
-                  headers: headers,
-                  message_body: None,
-                });
-                // TODO: if a 'Host' header is present, the URI is just an abs_path.
-                // TODO: Do browsers provide the root '/' or is server expected to add it?
-              }
-              None => return Err(RequestError::ReadError), // expected non-whitespace
-            }
-          }
-          None => return Err(RequestError::ReadError), // expected non-whitespace
-        }
+        // read_line should contain ending new line char. otherwise we reached the end of Take without finding real end of URI
+        if !line.ends_with('\n') { return Err(RequestError::MaxURISizeError) }
+        let request_size: usize = uri_size;
+
+        // parse request line
+        let parts = line.splitn(3, ' ').collect::<Vec<&str>>();
+        if parts.len() != 3 { return Err(RequestError::MalformedRequestError) } // request line should only have 3 parts
+        let method = parts[0].to_uppercase().to_string(); // TODO: supported methods should probably be enumerated
+        let uri = parts[1].to_string();
+        let version = parts[2].to_string(); // TODO: supported versions should probably be enumerated 
+
+        return Ok(Request {
+          total_size: request_size,
+          method: method,
+          uri: uri,
+          version: version,
+          headers: None,
+          message_body: None, // the server will assign an appropriate reader based on the request type.
+        });
       }
       // catch max header/uri size
       Err(error) => {
         match error.kind() {
-          std::io::ErrorKind::NotFound => {
-            // header too large
-            return Err(RequestError::MaxHeaderSizeError);
+          std::io::ErrorKind::NotFound => {// header too large
+            return Err(RequestError::MaxHeaderSizeError); 
           }
-          _ => return Err(RequestError::ReadError),
+          _ => return Err(RequestError::IOError(error)),
         }
       }
     }
   }
 
-  pub fn set_message_body(&mut self, message_body: Option<Box<dyn BufRead + 'r>>) {
+  // reads headers from the stream. this function expects to start reading from position immediately after parsing the request line
+  pub async fn parse_headers(&mut self, buf_reader: &mut BufReader<ReadHalf<'_>>) -> Result<(),RequestError>{
+    let parse_result = read_headers(buf_reader).await?;
+    self.total_size = self.total_size + parse_result.1;
+    self.headers = Some(parse_result.0);
+    Ok(())
+  }
+
+  pub fn set_message_body(&mut self, message_body: Option<Pin<Box<dyn AsyncBufRead + 'r + Send + Sync>>>) {
     self.message_body = message_body;
   }
+}
+
+async fn read_headers(buf_reader: &mut BufReader<ReadHalf<'_>>) -> Result<(HashMap<String, String>, usize), RequestError> {
+  let mut headers = HashMap::<String, String>::new();
+  let reader = buf_reader.take(MAX_HEADERS_SIZE as u64);
+  let mut lines = reader.lines();
+  let line_option = lines.next_line().await?;
+  match line_option {
+    Some(line) => {
+      if !line.is_empty() {  // an empty line marks the end of http headers
+
+        let parts: Vec<&str> = line.splitn(2, ':').collect::<Vec<&str>>(); // note: multiline headers were deprecated in rfc7230 so we won't support them
+        if parts.len() == 2 {
+          let field_name = parts[0].to_owned();
+          let field_value = parts[1].trim();
+          match headers.get_mut(&field_name) { // http 1.1 rfc2616 says multiple headers with identical names can be combined with commas
+            Some(existing_value) => {
+              existing_value.push(',');
+              existing_value.push_str(field_value);
+            }
+            None => {
+              headers.insert(field_name, field_value.to_owned());
+              ()
+            }
+          };
+        } else { return Err(RequestError::MalformedRequestError) }
+      }
+    },
+    None => return Err(RequestError::MaxHeaderSizeError)
+  }
+  
+
+  let headers_size = lines.into_inner().limit() as usize;
+
+  return Ok((headers, headers_size));
 }

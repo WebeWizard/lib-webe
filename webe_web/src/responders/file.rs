@@ -1,8 +1,9 @@
 use std::boxed::Box;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::BufReader;
 use std::path::PathBuf;
+
+use tokio::io::BufReader;
 
 use super::Request;
 use super::Responder;
@@ -74,11 +75,11 @@ impl Responder for FileResponder {
   fn validate(
     &self,
     _request: &Request,
-    params: &HashMap<String, String>,
+    params: &Vec<(String, String)>,
     _validation: Validation,
   ) -> ValidationResult {
-    match params.get(&self.path_param) {
-      Some(path_string) => {
+    match params.into_iter().find(|(key, _value)| *key == self.path_param) {
+      Some((_key, path_string)) => {
         // build the full path
         let mut file_path = PathBuf::new();
         file_path.push(&self.mount_point);
@@ -115,7 +116,7 @@ impl Responder for FileResponder {
   fn build_response(
     &self,
     _request: &mut Request,
-    _params: &HashMap<String, String>,
+    _params: &Vec<(String, String)>,
     validation: Validation,
   ) -> Result<Response, u16> {
     // use the path contained in the validation
@@ -137,7 +138,7 @@ impl Responder for FileResponder {
                     );
                     let mut response = Response::new(200);
                     response.headers = headers;
-                    response.message_body = Some(Box::new(BufReader::new(file)));
+                    response.message_body = Some(Box::pin(BufReader::new(tokio::fs::File::from_std(file))));
                     return Ok(response);
                   }
                   Err(_error) => return Err(500),

@@ -1,15 +1,17 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufWriter, Write};
-use std::net::TcpStream;
+use std::pin::Pin;
+
+use tokio::net::tcp::WriteHalf;
+use tokio::io::{AsyncBufRead, AsyncReadExt, BufWriter, AsyncWriteExt};
 
 use super::status::Status;
 use crate::constants::WEBE_BUFFER_SIZE;
 
-pub struct Response {
+pub struct Response<'r> {
   pub status: Status,
   pub keep_alive: bool, // flag to tell the server to keep alive after responding
   pub headers: HashMap<String, String>,
-  pub message_body: Option<Box<dyn BufRead>>,
+  pub message_body: Option<Pin<Box<dyn AsyncBufRead + 'r + Send>>>,
 }
 
 pub enum ResponseError {
@@ -17,9 +19,9 @@ pub enum ResponseError {
   WriteError,
 }
 
-impl Response {
+impl<'r> Response<'r> {
   // create an empty response from a status code
-  pub fn new(status: u16) -> Response {
+  pub fn new(status: u16) -> Response<'r> {
     let headers = HashMap::<String, String>::new();
     return Response {
       status: Status::from_standard_code(status),
@@ -29,7 +31,7 @@ impl Response {
     };
   }
 
-  pub fn from_status(status: Status) -> Response {
+  pub fn from_status(status: Status) -> Response<'r> {
     let headers = HashMap::<String, String>::new();
     return Response {
       status: status,
@@ -39,10 +41,10 @@ impl Response {
     };
   }
 
-  pub fn respond(&mut self, mut buf_writer: BufWriter<&TcpStream>) -> Result<(), ResponseError> {
+  pub async fn respond(&mut self, buf_writer: &mut BufWriter<WriteHalf<'_>>) -> Result<(), ResponseError> {
     // write the status line
     let status_line = format!("HTTP/1.1 {} {}\r\n", self.status.code, self.status.reason);
-    match buf_writer.write_all(status_line.as_bytes()) {
+    match buf_writer.write_all(status_line.as_bytes()).await {
       Ok(_) => {
         // reconcile keep-alive header
         if self.keep_alive {
@@ -54,7 +56,7 @@ impl Response {
         // write the response headers
         for (key, val) in self.headers.iter() {
           let header: String = format!("{}: {}\r\n", key, val);
-          match buf_writer.write(header.as_bytes()) {
+          match buf_writer.write(header.as_bytes()).await {
             Ok(_) => continue,
             Err(_error) => return Err(ResponseError::WriteError),
           }
@@ -63,7 +65,7 @@ impl Response {
       Err(_error) => return Err(ResponseError::WriteError),
     }
     // begin with empty new line
-    match buf_writer.write(b"\r\n") {
+    match buf_writer.write(b"\r\n").await {
       Ok(_) => {
         // write the message body
         match &mut self.message_body {
@@ -72,9 +74,9 @@ impl Response {
             // TODO: does fiddling with the buffer size help performance?
             let mut buf = [0u8; WEBE_BUFFER_SIZE];
             loop {
-              match body_reader.read(&mut buf) {
+              match body_reader.read(&mut buf).await {
                 Ok(0) => break,
-                Ok(size) => match buf_writer.write(&buf[0..size]) {
+                Ok(size) => match buf_writer.write(&buf[0..size]).await {
                   Ok(_) => {}
                   Err(_error) => return Err(ResponseError::WriteError),
                 },
@@ -88,7 +90,7 @@ impl Response {
       Err(_error) => return Err(ResponseError::WriteError),
     }
     // flush the stream
-    match buf_writer.flush() {
+    match buf_writer.flush().await {
       Ok(_) => return Ok(()),
       Err(_error) => return Err(ResponseError::WriteError),
     }

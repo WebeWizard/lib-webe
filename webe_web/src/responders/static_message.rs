@@ -32,23 +32,28 @@ impl StaticResponder {
     let status = Status::from_standard_code(status_code);
     return StaticResponder::from_status(status);
   }
-}
 
-impl Responder for StaticResponder {
-  fn build_response(
-    &self,
-    _request: &mut Request,
-    _params: &HashMap<String, String>,
-    _validation: Validation,
-  ) -> Result<Response, u16> {
+  // since this responder doesn't really need the request, params, or validation
+  // we can prepare responses much easier
+  pub fn quick_response<'r>(&self) -> Response<'r> {
     let bytes = self.message.clone().into_bytes();
     let mut headers = HashMap::<String, String>::new();
     headers.insert("Content-Length".to_owned(), bytes.len().to_string());
     headers.insert("Content-Type".to_owned(), "text/html".to_owned());
     let mut response = Response::new(self.status_code);
     response.headers = headers;
-    let bytes = self.message.clone().into_bytes();
-    response.message_body = Some(Box::new(Cursor::new(bytes)));
-    return Ok(response);
+    response.message_body = Some(Box::pin(Cursor::new(bytes)));
+    return response;
+  }
+}
+
+impl Responder for StaticResponder {
+  fn build_response(
+    &self,
+    _request: &mut Request,
+    _params: &Vec<(String, String)>,
+    _validation: Validation,
+  ) -> Result<Response, u16> {
+    Ok(self.quick_response())
   }
 }

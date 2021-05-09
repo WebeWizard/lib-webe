@@ -1,14 +1,29 @@
 const NEW_LINE: [u8; 2] = [b'\r', b'\n'];
-use std::io::{BufRead, Error, Read, Write};
+use std::io::{BufRead, Error, Read, Write, Cursor};
+use std::marker::Unpin;
+use std::pin::Pin;
 
-pub struct ChunkedDecoder<B: BufRead> {
-  finished: bool,
-  cur_chunk_size: usize,
-  cur_chunk_pos: usize,
-  inner: B,
+use pin_project_lite::pin_project;
+
+use tokio::io::{AsyncBufRead, AsyncRead, ReadBuf};
+use std::task::{Context, Poll};
+
+// Must use 'where' style trait bounds because of this bug: https://github.com/taiki-e/pin-project-lite/issues/2
+pin_project! {
+  pub struct ChunkedDecoder<B>
+  where
+    B: AsyncBufRead,
+    B: Unpin,
+  {
+    finished: bool,
+    cur_chunk_size: usize,
+    cur_chunk_pos: usize,
+    #[pin]
+    inner: B,
+  }
 }
 
-impl<B: BufRead> ChunkedDecoder<B> {
+impl<B: AsyncBufRead+Unpin> ChunkedDecoder<B> {
   pub fn new(inner: B) -> ChunkedDecoder<B> {
     ChunkedDecoder {
       finished: false,
@@ -19,57 +34,70 @@ impl<B: BufRead> ChunkedDecoder<B> {
   }
 }
 
-impl<B: BufRead> Read for ChunkedDecoder<B> {
-  fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
-    if self.finished {
-      return Ok(0); // already finished with all chunks
+impl<B: AsyncBufRead+Unpin> AsyncRead for ChunkedDecoder<B> {
+  fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<tokio::io::Result<()>> {
+    let mut this = self.project();
+    if *this.finished {
+      return Poll::Ready(Ok(())); // already finished with all chunks
     }
-    if self.cur_chunk_size == 0 && self.cur_chunk_pos == 0 {
-      // start of chunk - read in the new chunk size
+
+    let mut inner_buf: Cursor<Vec<u8>>;
+    
+    match this.inner.as_mut().poll_fill_buf(cx) {
+      Poll::Ready(Ok(data)) => inner_buf = Cursor::new(Vec::from(data)), // TODO: I hate this, but it's the only way I can find to drop the 'this.inner' borrow.
+      Poll::Ready(Err(error)) => return Poll::Ready(Err(error)),
+      Poll::Pending => return Poll::Pending
+    }
+
+    // if start of chunk - read in the new chunk size
+    if *this.cur_chunk_size == 0 && *this.cur_chunk_pos == 0 {
       let mut chunk_size_line = String::new();
-      match self.inner.read_line(&mut chunk_size_line) {
+      match inner_buf.read_line(&mut chunk_size_line) {
         Ok(size) => {
+          this.inner.as_mut().consume(size);
           // parse chunk size from hex string
           match usize::from_str_radix(&chunk_size_line[..(size - 2)], 16) {
             Ok(chunk_size) => {
               if chunk_size == 0 {
                 // completely finished with all chunks
-                self.finished = true;
-                return Ok(0);
+                *this.finished = true;
+                return Poll::Ready(Ok(()));
               } else {
-                self.cur_chunk_size = chunk_size;
+                *this.cur_chunk_size = chunk_size;
               }
             }
-            Err(_error) => return Err(std::io::Error::from(std::io::ErrorKind::InvalidData)),
+            Err(_error) => return Poll::Ready(Err(std::io::Error::from(std::io::ErrorKind::InvalidData))),
           }
         }
-        Err(error) => return Err(error),
+        Err(error) => return Poll::Ready(Err(error)),
       }
     }
     // read from remaining chunk data
+
     let limit = std::cmp::min(
-      self.cur_chunk_size - self.cur_chunk_pos, // read the rest of the current chunk
-      buf.len(),                                // or, fill the rest of the buffer
+      *this.cur_chunk_size - *this.cur_chunk_pos,
+      buf.remaining()
     );
-    let mut take = self.inner.by_ref().take(limit as u64);
-    match take.read(buf) {
+
+    let mut take = inner_buf.take(limit as u64);
+    let mut temp = Vec::from(buf.initialize_unfilled()); // TODO: not sure why I can't read directly into buf
+    match take.read(&mut temp) {
       Ok(size) => {
-        self.cur_chunk_pos += size;
-        if self.cur_chunk_pos == self.cur_chunk_size {
+        temp.truncate(size);
+        this.inner.as_mut().consume(size);
+        *this.cur_chunk_pos += size;
+        if *this.cur_chunk_pos == *this.cur_chunk_size {
           // at the end of the current chunk
           // trash the ending new line chars
-          match self.inner.read_exact(&mut NEW_LINE) {
-            Ok(()) => {
-              // reset self
-              self.cur_chunk_pos = 0;
-              self.cur_chunk_size = 0;
-            }
-            Err(error) => return Err(error),
-          }
+          this.inner.as_mut().consume(NEW_LINE.len());
+          // reset self
+          *this.cur_chunk_pos = 0;
+          *this.cur_chunk_size = 0;
+          buf.put_slice(&temp);
         }
-        return Ok(size);
+        return Poll::Ready(Ok(()));
       }
-      Err(error) => return Err(error),
+      Err(error) => return Poll::Ready(Err(error)),
     }
   }
 }
@@ -140,21 +168,20 @@ impl<W: Write> Write for ChunkedEncoder<W> {
 // 0\r\n
 // \r\n
 
-#[test]
-fn chunked_decoder() {
-  use std::io::BufReader;
+#[tokio::test]
+async fn chunked_decoder() {
+  use std::io::Cursor;
+  use tokio::io::{AsyncReadExt};
 
   let chunked_data = "4\r\nWiki\r\n5\r\npedia\r\nE\r\n in\r\n\r\nchunks.\r\n0\r\n\r\n".as_bytes();
-  let raw_reader = BufReader::new(chunked_data);
-  let chunk_reader = ChunkedDecoder::new(raw_reader);
-  let mut buf_chunk_reader = BufReader::new(chunk_reader);
+  let mut chunk_reader = ChunkedDecoder::new(Cursor::new(chunked_data));
   let mut decoded = String::new();
-  buf_chunk_reader.read_to_string(&mut decoded).unwrap();
+  chunk_reader.read_to_string(&mut decoded).await.unwrap();
   assert_eq!(decoded, "Wikipedia in\r\n\r\nchunks.".to_owned());
 }
 
-#[test]
-fn chunked_encoder() {
+#[tokio::test]
+async fn chunked_encoder() {
   let buf = Vec::new();
   let mut chunked_writer = ChunkedEncoder::new(buf);
   chunked_writer.write(b"Wiki").unwrap();

@@ -3,8 +3,6 @@ pub mod options;
 pub mod spa;
 pub mod static_message;
 
-use std::collections::HashMap;
-
 use super::request::Request;
 use super::response::Response;
 use super::status::Status;
@@ -17,7 +15,7 @@ pub trait Responder: Send + Sync {
   fn validate(
     &self,
     _request: &Request,
-    _params: &HashMap<String, String>,
+    _params: &Vec<(String, String)>,
     validation: Validation,
   ) -> ValidationResult {
     Ok(validation) // default is to forward the validation along
@@ -29,7 +27,7 @@ pub trait Responder: Send + Sync {
   fn build_response(
     &self,
     request: &mut Request,
-    params: &HashMap<String, String>,
+    params: &Vec<(String, String)>,
     validation: Validation,
   ) -> Result<Response, u16>;
 }

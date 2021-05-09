@@ -1,6 +1,7 @@
-extern crate crossbeam_utils;
+extern crate tokio;
 extern crate serde;
 extern crate serde_json;
+extern crate pin_project_lite;
 
 pub mod constants;
 pub mod encoding;
