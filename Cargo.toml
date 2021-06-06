@@ -2,6 +2,7 @@
 members = [
   "example",
   "webe_args",
+  "webe_build",
   "webe_auth",
   "webe_web",
 ]
