@@ -8,9 +8,9 @@ use tokio::net::{TcpListener, TcpStream};
 
 use super::encoding::chunked::ChunkedDecoder;
 use super::request::{Request, RequestError};
-use super::response::ResponseError;
 use super::responders::static_message::StaticResponder;
 use super::responders::Responder;
+use super::response::ResponseError;
 
 #[derive(PartialEq, Eq, Hash)]
 pub struct Route {
@@ -24,18 +24,20 @@ impl Route {
     Route {
       method: method.to_owned(),
       uri: uri.to_owned(),
-      has_params: uri.contains('<')
+      has_params: uri.contains('<'),
     }
   }
 }
 
 pub struct RouteMap<'r> {
-  inner: HashMap<Route, Box<dyn Responder + 'r>>
+  inner: HashMap<Route, Box<dyn Responder + 'r>>,
 }
 
 impl<'r> RouteMap<'r> {
   pub fn new() -> RouteMap<'r> {
-    RouteMap { inner: HashMap::new() }
+    RouteMap {
+      inner: HashMap::new(),
+    }
   }
 
   pub fn add_route<T: 'r + Responder>(&mut self, mut route: Route, responder: T) {
@@ -55,21 +57,21 @@ pub struct Server {
 
 #[derive(Debug)]
 pub enum ServerError {
-  BadRequest(RequestError),          // Request is unable to be processed by the server
-  BindError(std::io::Error),        // server failed to bind on ip and port
+  BadRequest(RequestError),  // Request is unable to be processed by the server
+  BindError(std::io::Error), // server failed to bind on ip and port
   ConnectionFailed(std::io::Error), // server failed to grab connection from listener
-  InternalError,                    // failed to process the stream
+  InternalError,             // failed to process the stream
 }
 
 impl From<RequestError> for ServerError {
   fn from(err: RequestError) -> ServerError {
-      ServerError::BadRequest(err)
+    ServerError::BadRequest(err)
   }
 }
 
 impl From<ResponseError> for ServerError {
   fn from(_err: ResponseError) -> ServerError {
-      ServerError::InternalError
+    ServerError::InternalError
   }
 }
 
@@ -88,8 +90,6 @@ impl Server {
     };
   }
 
-  
-
   // starts the server, blocks the thread while the server is running
   pub async fn start(&self, routes: RouteMap<'static>) -> Result<(), ServerError> {
     let routes_arc = Arc::new(routes);
@@ -97,9 +97,7 @@ impl Server {
       match self.listener.accept().await {
         Ok((stream, _socket)) => {
           let process_routes = routes_arc.clone();
-          tokio::spawn(async move {
-            process_stream(stream, process_routes).await
-          });
+          tokio::spawn(async move { process_stream(stream, process_routes).await });
         }
         Err(error) => return Err(ServerError::ConnectionFailed(error)),
       }
@@ -109,6 +107,14 @@ impl Server {
 
 fn find_best_route<'r>(request: &Request, routes: &'r Arc<RouteMap<'r>>) -> Option<&'r Route> {
   // ~~ find the best responder ~~
+  // first check for an exact match
+  if let Some(route) = routes
+    .inner
+    .keys()
+    .find(|route| !route.has_params && request.method == route.method && route.uri == request.uri)
+  {
+    return Some(route);
+  }
   // non-terminal route params WILL NOT contain more than one request uri part
   // terminal route params WILL contain the remainder of the request uri
   let request_parts: Vec<&str> = request.uri.split('/').collect();
@@ -120,6 +126,7 @@ fn find_best_route<'r>(request: &Request, routes: &'r Arc<RouteMap<'r>>) -> Opti
       if route.method != request.method {
         return None;
       }
+
       let route_parts: Vec<&str> = route.uri.split('/').collect();
       // compare length. route cannot match request with less parts
       if route_parts.len() > request_parts.len() {
@@ -158,7 +165,9 @@ fn parse_route_params(request: &Request, route: &Route) -> Vec<(String, String)>
   // so a Vec should be generally much faster than hashmap of small size
   let mut params: Vec<(String, String)> = Vec::new();
 
-  if !route.has_params { return params; }
+  if !route.has_params {
+    return params;
+  }
 
   let request_parts: Vec<&str> = request.uri.split('/').collect();
   let route_uri_parts: Vec<&str> = route.uri.split('/').collect();
@@ -167,8 +176,8 @@ fn parse_route_params(request: &Request, route: &Route) -> Vec<(String, String)>
     if route_uri_parts[i].contains('<') {
       let name = route_uri_parts[i].to_owned();
       let value = if i == part_length - 1 {
-         // if this is the last part of the route and the part is a route param...
-         // then combine the remaining parts from the request uri (ex. a path to a subfolder)
+        // if this is the last part of the route and the part is a route param...
+        // then combine the remaining parts from the request uri (ex. a path to a subfolder)
         request_parts[i..].join("/")
       } else {
         request_parts[i].to_owned()
@@ -179,9 +188,12 @@ fn parse_route_params(request: &Request, route: &Route) -> Vec<(String, String)>
   return params;
 }
 
-// process a client request, return a bool to keep connection alive
+// process a client request
 // TODO: handle these errors better (need to know the real error for logging, whatever)
-async fn process_stream(mut stream: TcpStream, routes: Arc<RouteMap<'_>>) -> Result<(), ServerError> {
+async fn process_stream(
+  mut stream: TcpStream,
+  routes: Arc<RouteMap<'_>>,
+) -> Result<(), ServerError> {
   // split the stream into reader and writer
   let (reader, writer) = stream.split();
   let mut buf_reader = BufReader::new(reader);
@@ -191,7 +203,6 @@ async fn process_stream(mut stream: TcpStream, routes: Arc<RouteMap<'_>>) -> Res
   while keep_alive {
     let responder; // placeholder for selected responder
     let mut response; // placeholder for some kind of response
-    
     match Request::new(&mut buf_reader).await {
       Ok(mut request) => {
         // find a route for the request , or return 404 Not Found
@@ -201,7 +212,8 @@ async fn process_stream(mut stream: TcpStream, routes: Arc<RouteMap<'_>>) -> Res
           match request.parse_headers(&mut buf_reader).await {
             Ok(()) => {
               // use a trait object because the final reader type is unknown at compile time
-              let mut body_reader: std::pin::Pin<Box<dyn AsyncBufRead + Send + Sync>> = Box::pin(&mut buf_reader);
+              let mut body_reader: std::pin::Pin<Box<dyn AsyncBufRead + Send + Sync>> =
+                Box::pin(&mut buf_reader);
 
               // using transfer encodings on the body?
               match &request.headers {
@@ -220,11 +232,13 @@ async fn process_stream(mut stream: TcpStream, routes: Arc<RouteMap<'_>>) -> Res
                         for encoding in encodings {
                           body_reader = match encoding.as_str() {
                             // TODO: Add gzip/deflate encoders/decoders
-                            "chunked" => {
-                              Box::pin(BufReader::new(ChunkedDecoder::new(body_reader)))
-                            }
+                            "chunked" => Box::pin(BufReader::new(ChunkedDecoder::new(body_reader))),
                             "identity" => body_reader,
-                            _ => return Err(ServerError::BadRequest(RequestError::EncodingNotSupportedError)),
+                            _ => {
+                              return Err(ServerError::BadRequest(
+                                RequestError::EncodingNotSupportedError,
+                              ))
+                            }
                           }
                         }
                       }
@@ -238,13 +252,12 @@ async fn process_stream(mut stream: TcpStream, routes: Arc<RouteMap<'_>>) -> Res
                         body_reader = Box::pin(body_reader.take(content_length));
                         keep_alive = true
                       }
-                      Err(_error) => return Err(ServerError::BadRequest(RequestError::MalformedRequestError)),
+                      Err(_error) => {
+                        return Err(ServerError::BadRequest(RequestError::MalformedRequestError))
+                      }
                     },
                     None => {}
                   }
-        
-                  
-        
                   // does request want to close connection?
                   match req_headers.get("connection") {
                     Some(con_header) => {
@@ -264,14 +277,20 @@ async fn process_stream(mut stream: TcpStream, routes: Arc<RouteMap<'_>>) -> Res
               if let Ok(validation_result) = responder.validate(&request, &params, None) {
                 match responder.build_response(&mut request, &params, validation_result) {
                   Ok(new_response) => response = new_response,
-                  Err(error_code) => response = StaticResponder::from_standard_code(error_code).quick_response(),
+                  Err(error_code) => {
+                    response = StaticResponder::from_standard_code(error_code).quick_response()
+                  }
                 }
-              } else { response = StaticResponder::from_standard_code(400).quick_response() } // 400 Bad Request
+              } else {
+                response = StaticResponder::from_standard_code(400).quick_response()
+              } // 400 Bad Request
             }
             Err(_error) => response = StaticResponder::from_standard_code(400).quick_response(),
           }
-        } else { response = StaticResponder::from_standard_code(404).quick_response(); }
-      },
+        } else {
+          response = StaticResponder::from_standard_code(404).quick_response();
+        }
+      }
       Err(_error) => response = StaticResponder::from_standard_code(400).quick_response(), // 400 Bad Request
     }
 
@@ -281,150 +300,148 @@ async fn process_stream(mut stream: TcpStream, routes: Arc<RouteMap<'_>>) -> Res
   return Ok(());
 }
 
+//               // TODO: move respnder.validate() here
 
+//               // use a trait object because the final reader type is unknown at compile time
+//               let mut body_reader: Box<dyn AsyncBufRead + 's> = Box::new(buf_reader);
 
-      //               // TODO: move respnder.validate() here
+//               // using transfer encodings on the body?
+//               match request.headers.get("transfer-encoding") {
+//                 Some(value) => {
+//                   let encodings: Vec<String> =
+//                     value.split(',').map(|e| e.trim().to_lowercase()).collect();
+//                   if encodings.len() >= 1 {
+//                     if encodings[encodings.len() - 1] != "chunked" {
+//                       // if not chunked, then assume connection will close
+//                       // unless content-length is given below
+//                       keep_alive = false;
+//                     }
+//                     // apply decoders in order
+//                     for encoding in encodings {
+//                       body_reader = match encoding.as_str() {
+//                         // TODO: Add gzip/deflate encoders/decoders
+//                         "chunked" => {
+//                           Box::new(BufReader::new(ChunkedDecoder::new(body_reader)))
+//                         }
+//                         "identity" => body_reader,
+//                         _ => return Err(ServerError::BadRequest),
+//                       }
+//                     }
+//                   }
+//                 }
+//                 None => {}
+//               }
 
-      //               // use a trait object because the final reader type is unknown at compile time
-      //               let mut body_reader: Box<dyn AsyncBufRead + 's> = Box::new(buf_reader);
+//               match request.headers.get("content-length") {
+//                 Some(value) => match value.parse::<u64>() {
+//                   Ok(content_length) => {
+//                     body_reader = Box::new(body_reader.take(content_length));
+//                     keep_alive = true
+//                   }
+//                   Err(_error) => return Err(ServerError::BadRequest),
+//                 },
+//                 None => {}
+//               }
 
-      //               // using transfer encodings on the body?
-      //               match request.headers.get("transfer-encoding") {
-      //                 Some(value) => {
-      //                   let encodings: Vec<String> =
-      //                     value.split(',').map(|e| e.trim().to_lowercase()).collect();
-      //                   if encodings.len() >= 1 {
-      //                     if encodings[encodings.len() - 1] != "chunked" {
-      //                       // if not chunked, then assume connection will close
-      //                       // unless content-length is given below
-      //                       keep_alive = false;
-      //                     }
-      //                     // apply decoders in order
-      //                     for encoding in encodings {
-      //                       body_reader = match encoding.as_str() {
-      //                         // TODO: Add gzip/deflate encoders/decoders
-      //                         "chunked" => {
-      //                           Box::new(BufReader::new(ChunkedDecoder::new(body_reader)))
-      //                         }
-      //                         "identity" => body_reader,
-      //                         _ => return Err(ServerError::BadRequest),
-      //                       }
-      //                     }
-      //                   }
-      //                 }
-      //                 None => {}
-      //               }
+//               request.set_message_body(Some(body_reader));
 
-      //               match request.headers.get("content-length") {
-      //                 Some(value) => match value.parse::<u64>() {
-      //                   Ok(content_length) => {
-      //                     body_reader = Box::new(body_reader.take(content_length));
-      //                     keep_alive = true
-      //                   }
-      //                   Err(_error) => return Err(ServerError::BadRequest),
-      //                 },
-      //                 None => {}
-      //               }
+//               // does request want to close connection?
+//               match request.headers.get("connection") {
+//                 Some(con_header) => {
+//                   BufReader::new(stream);
+//                   if con_header.to_lowercase() == "close" {
+//                     keep_alive = false
+//                   }
+//                 }
+//                 None => {}
+//               }
 
-      //               request.set_message_body(Some(body_reader));
-
-      //               // does request want to close connection?
-      //               match request.headers.get("connection") {
-      //                 Some(con_header) => {
-      //                   BufReader::new(stream);
-      //                   if con_header.to_lowercase() == "close" {
-      //                     keep_alive = false
-      //                   }
-      //                 }
-      //                 None => {}
-      //               }
-
-      //               // TODO: move validate to before body reader is built
-      //               match responder.validate(&request, &params, None) {
-      //                 Ok(validation_result) => {
-      //                   match responder.build_response(&mut request, &params, validation_result) {
-      //                     Ok(mut response) => {
-      //                       // TODO: Need a solution for adding CORS header to all responses
-      //                       response.headers.insert(
-      //                         "Access-Control-Allow-Origin".to_owned(),
-      //                         "http://localhost:1234".to_owned(),
-      //                       );
-      //                       match response.respond(BufWriter::new(&stream)) {
-      //                         Ok(()) => {
-      //                           keep_alive = response.keep_alive;
-      //                           //keep_alive = false;
-      //                           // TODO: figure out logging
-      //                           // print!("Done");
-      //                         }
-      //                         Err(_error) => return Err(ServerError::InternalError),
-      //                       }
-      //                     }
-      //                     Err(response_code) => {
-      //                       let static_responder =
-      //                         StaticResponder::from_standard_code(response_code);
-      //                       match static_responder.build_response(&mut request, &params, None) {
-      //                         Ok(mut response) => {
-      //                           // TODO: Need a solution for adding CORS header to all responses
-      //                           response.headers.insert(
-      //                             "Access-Control-Allow-Origin".to_owned(),
-      //                             "http://localhost:1234".to_owned(),
-      //                           );
-      //                           match response.respond(BufWriter::new(&stream)) {
-      //                             Ok(()) => {} // keep_alive = true
-      //                             Err(_error) => return Err(ServerError::InternalError),
-      //                           }
-      //                         }
-      //                         Err(_error) => return Err(ServerError::InternalError),
-      //                       }
-      //                     }
-      //                   }
-      //                 }
-      //                 Err(validation_status) => {
-      //                   let static_responder = StaticResponder::from_status(validation_status);
-      //                   match static_responder.build_response(&mut request, &params, None) {
-      //                     Ok(mut response) => {
-      //                       // TODO: Need a solution for adding CORS header to all responses
-      //                       response.headers.insert(
-      //                         "Access-Control-Allow-Origin".to_owned(),
-      //                         "http://localhost:1234".to_owned(),
-      //                       );
-      //                       match response.respond(BufWriter::new(&stream)) {
-      //                         Ok(()) => {} // keep-alive = true
-      //                         Err(_error) => return Err(ServerError::InternalError),
-      //                       }
-      //                     }
-      //                     Err(_error) => return Err(ServerError::InternalError),
-      //                   }
-      //                 }
-      //               }
-      //             }
-      //             None => return Err(ServerError::InternalError),
-      //           }
-      //         }
-      //         None => {
-      //           let static_responder = StaticResponder::from_standard_code(400);
-      //           match static_responder.build_response(
-      //             &mut request,
-      //             &HashMap::<String, String>::new(),
-      //             None,
-      //           ) {
-      //             Ok(mut response) => {
-      //               // TODO: Need a solution for adding CORS header to all responses
-      //               response.headers.insert(
-      //                 "Access-Control-Allow-Origin".to_owned(),
-      //                 "http://localhost:1234".to_owned(),
-      //               );
-      //               match response.respond(BufWriter::new(&stream)) {
-      //                 Ok(()) => {} //keep-alive = true
-      //                 Err(_error) => return Err(ServerError::InternalError),
-      //               }
-      //             }
-      //             Err(_error) => return Err(ServerError::InternalError),
-      //           }
-      //         }
-      //       }
-      //     }
-      //     Err(_error) => return Err(ServerError::InternalError),
-      //   }
-      // }
-      // return Ok(());
+//               // TODO: move validate to before body reader is built
+//               match responder.validate(&request, &params, None) {
+//                 Ok(validation_result) => {
+//                   match responder.build_response(&mut request, &params, validation_result) {
+//                     Ok(mut response) => {
+//                       // TODO: Need a solution for adding CORS header to all responses
+//                       response.headers.insert(
+//                         "Access-Control-Allow-Origin".to_owned(),
+//                         "http://localhost:1234".to_owned(),
+//                       );
+//                       match response.respond(BufWriter::new(&stream)) {
+//                         Ok(()) => {
+//                           keep_alive = response.keep_alive;
+//                           //keep_alive = false;
+//                           // TODO: figure out logging
+//                           // print!("Done");
+//                         }
+//                         Err(_error) => return Err(ServerError::InternalError),
+//                       }
+//                     }
+//                     Err(response_code) => {
+//                       let static_responder =
+//                         StaticResponder::from_standard_code(response_code);
+//                       match static_responder.build_response(&mut request, &params, None) {
+//                         Ok(mut response) => {
+//                           // TODO: Need a solution for adding CORS header to all responses
+//                           response.headers.insert(
+//                             "Access-Control-Allow-Origin".to_owned(),
+//                             "http://localhost:1234".to_owned(),
+//                           );
+//                           match response.respond(BufWriter::new(&stream)) {
+//                             Ok(()) => {} // keep_alive = true
+//                             Err(_error) => return Err(ServerError::InternalError),
+//                           }
+//                         }
+//                         Err(_error) => return Err(ServerError::InternalError),
+//                       }
+//                     }
+//                   }
+//                 }
+//                 Err(validation_status) => {
+//                   let static_responder = StaticResponder::from_status(validation_status);
+//                   match static_responder.build_response(&mut request, &params, None) {
+//                     Ok(mut response) => {
+//                       // TODO: Need a solution for adding CORS header to all responses
+//                       response.headers.insert(
+//                         "Access-Control-Allow-Origin".to_owned(),
+//                         "http://localhost:1234".to_owned(),
+//                       );
+//                       match response.respond(BufWriter::new(&stream)) {
+//                         Ok(()) => {} // keep-alive = true
+//                         Err(_error) => return Err(ServerError::InternalError),
+//                       }
+//                     }
+//                     Err(_error) => return Err(ServerError::InternalError),
+//                   }
+//                 }
+//               }
+//             }
+//             None => return Err(ServerError::InternalError),
+//           }
+//         }
+//         None => {
+//           let static_responder = StaticResponder::from_standard_code(400);
+//           match static_responder.build_response(
+//             &mut request,
+//             &HashMap::<String, String>::new(),
+//             None,
+//           ) {
+//             Ok(mut response) => {
+//               // TODO: Need a solution for adding CORS header to all responses
+//               response.headers.insert(
+//                 "Access-Control-Allow-Origin".to_owned(),
+//                 "http://localhost:1234".to_owned(),
+//               );
+//               match response.respond(BufWriter::new(&stream)) {
+//                 Ok(()) => {} //keep-alive = true
+//                 Err(_error) => return Err(ServerError::InternalError),
+//               }
+//             }
+//             Err(_error) => return Err(ServerError::InternalError),
+//           }
+//         }
+//       }
+//     }
+//     Err(_error) => return Err(ServerError::InternalError),
+//   }
+// }
+// return Ok(());
