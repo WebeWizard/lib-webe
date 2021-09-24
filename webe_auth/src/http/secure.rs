@@ -32,7 +32,7 @@ impl<'w, R: Responder> Responder for SecureResponder<'w, R> {
   fn validate(
     &self,
     request: &Request,
-    params: &HashMap<String, String>,
+    params: &Vec<(String,String)>,
     _validation: Validation,
   ) -> ValidationResult {
     // make sure session header belongs to a valid session

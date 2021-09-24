@@ -10,6 +10,8 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+use tokio::io::AsyncReadExt;
+
 #[derive(Deserialize)]
 pub struct CreateAccountForm {
   pub email: String,
@@ -32,12 +34,16 @@ impl<'w> Responder for CreateAccountResponder<'w> {
   fn build_response(
     &self,
     request: &mut Request,
-    params: &HashMap<String, String>,
+    params: &Vec<(String,String)>,
     _validation: Validation,
   ) -> Result<Response, u16> {
     match &mut request.message_body {
       Some(body_reader) => {
-        match serde_json::from_reader::<_, CreateAccountForm>(body_reader) {
+        let mut body = Vec::<u8>::new();
+        body_reader.read_to_end(&mut body);
+        // TODO: use from_utf8 instead of lossy, that way we properly catch malformed text
+        let body: String = String::from_utf8_lossy(&body).into_owned();
+        match serde_json::from_reader::<_, CreateAccountForm>(body.as_bytes()) {
           Ok(form) => {
             dbg!("email: {}, secret: {}", &form.email, &form.secret);
             match self.auth_manager.create_account(form.email, form.secret) {

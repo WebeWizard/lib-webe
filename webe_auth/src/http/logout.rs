@@ -32,7 +32,7 @@ impl<'w> Responder for LogoutResponder<'w> {
   fn build_response(
     &self,
     request: &mut Request,
-    _params: &HashMap<String, String>,
+    _params: &Vec<(String,String)>,
     _validation: Validation,
   ) -> Result<Response, u16> {
     match &mut request.message_body {
