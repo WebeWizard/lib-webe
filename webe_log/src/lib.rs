@@ -4,6 +4,7 @@ use std::io::{self, BufWriter, Write};
 use std::sync::{mpsc,Arc,Mutex};
 use std::thread;
 use std::thread::JoinHandle;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub enum LogLevel {
@@ -13,7 +14,7 @@ pub enum LogLevel {
 pub struct WebeLogger {
   sinks: Vec<Box<dyn Sink>>,
   monitor: JoinHandle<()>, // a separate thread used to push logging status messages to console
-  mon_sender: mpsc::Sender<String>,
+  pub mon_sender: mpsc::Sender<String>,
 }
 
 impl WebeLogger {
@@ -55,6 +56,7 @@ pub trait Sink {
 pub struct ConsoleLogger {
   queue: Arc<Mutex<Vec<String>>>,
   scheduler: JoinHandle<()>,
+  monitor_send: mpsc::Sender<String>,
 }
 
 impl ConsoleLogger {
@@ -62,28 +64,32 @@ impl ConsoleLogger {
     /* TODO - use a Locked stdout handle for better performance - once the api is stablized.
     https://doc.rust-lang.org/std/io/struct.Stdout.html#method.into_locked */
     let stdout = io::stdout();
-    let queue = Arc::new(Mutex::new(Vec::new()));
+    let queue = Arc::new(Mutex::new(Vec::<String>::new()));
     let thread_queue = queue.clone();
+    let thread_mon_send = mon_send.clone();
     let scheduler = thread::spawn(move || {
-      let std_handle = io::BufWriter::new(stdout);
+      let mut std_handle = io::BufWriter::new(stdout);
       loop {
         match thread_queue.try_lock() {
-          Ok(guard) => {
-            for msg in guard.iter() {
+          Ok(mut queue_guard) => {
+            for msg in queue_guard.drain(..) {
               writeln!(std_handle, "{}", msg);
             }
           }
           Err(lock_err) => {
-            mon_send.send(format!("{}",lock_err));
+            // TODO: not sure what to do if we get an error sending to the monitor...
+            thread_mon_send.send(format!("{}",lock_err)).unwrap_or_default();
           }
         }
-        for msg in thread_queue.try_lock().iter() {
-        }
+        std_handle.flush().unwrap_or_default();
+        // sleep the thread for 1 second
+        thread::sleep(Duration::from_secs(1));
       }
     });
     ConsoleLogger { 
       queue: queue,
-      scheduler: scheduler
+      scheduler: scheduler,
+      monitor_send: mon_send,
     }
   }
 }
@@ -92,7 +98,13 @@ impl Sink for ConsoleLogger {
   // Add message to the queue.  It'll get picked up by the next write timer.
   fn write(&mut self, level: &LogLevel, msg: &str) {
     let cur_timestamp = Local::now();
-    match thread_
-    self.handle, "[{}] - [{:?}] {}", cur_timestamp, level, msg);
+    let formatted_msg = format!("[{}] - [{:?}] {}", cur_timestamp, level, msg);
+    match self.queue.lock() {
+      Ok(mut shared_queue) => shared_queue.push(formatted_msg),
+      Err(lock_err) => {
+        // TODO: not sure what to do if we get an error sending to the monitor...
+        self.monitor_send.send(format!("{}",lock_err)).unwrap_or_default();
+      }
+    }
   }
 }
