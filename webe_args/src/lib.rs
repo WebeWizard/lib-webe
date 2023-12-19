@@ -83,7 +83,7 @@ impl Args {
             if argopt.is_required {
               return Err(ArgError::RequiredNotFound);
             }
-              else { return Err(ArgError::ArgNotFound); }
+              else { return Ok(None); }
           }
         }
       }

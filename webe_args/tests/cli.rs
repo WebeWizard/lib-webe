@@ -42,6 +42,11 @@ fn main() {
   missing_required();
   println!("Ok");
 
+  // test missing optional arguments should not error
+  println!("Running Test: missing_optional()...");
+  missing_optional();
+  println!("Ok");
+
   // test that all required args are present and valid
   print!("Running Test:  parse_args()...");
   parse_args();
@@ -126,6 +131,17 @@ fn missing_required() {
   }
 }
 
+fn missing_optional() {
+  let args = default_args();
+  match args.get("missing_optional") {
+    Ok(opt) => match opt {
+      Some(_value) => panic!("a missing arg should have no value"),
+      None => {} // expected
+    },
+    Err(_cause) => panic!("a missing optional argument is not an error")
+  }
+}
+
 fn parse_args() {
   let bad_args = AssertUnwindSafe(default_args());
   // catch the panic from the library (like the #[should_panic] attribute in cargo's ootb test harness)
@@ -186,6 +202,16 @@ fn default_args() -> Args {
       short: None,
       description: Some("This argument is present, but should not be found in args".to_owned()),
       is_required: true,
+      is_flag: false,
+      validation: None,
+    },
+  );
+  args.add(
+    "missing_optional".to_owned(),
+    ArgOpts {
+      short: None,
+      description: Some("This argument is present, but should not be found in args".to_owned()),
+      is_required: false,
       is_flag: false,
       validation: None,
     },
