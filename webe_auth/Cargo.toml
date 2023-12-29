@@ -6,16 +6,16 @@ edition = "2018"
 
 [dependencies]
 
-bcrypt = "0.6.1"
+bcrypt = "0.15.0"
 diesel = { version = "1.4.3", features = ["mysql","chrono", "r2d2"] }
 lettre = { version = "0.9.2", features = ["connection-pool"] }
 lettre_email = "0.9.2"
-native-tls = "0.2.3"
+native-tls = { version = "0.2.11", features = ["vendored"] }
 r2d2 = "0.8.7"
 rand = "0.7.2"
-serde = { version = "1.0.103", features = ["derive"] }
-serde_json = "1.0.42"
-tokio = { version = "1.5.0", features = ["full"] }
+serde = { version = "1.0.193", features = ["derive"] }
+serde_json = "1.0.108"
+tokio = { version = "1.35.1", features = ["full"] }
 
 webe_web = { path = "../webe_web" }
 webe_id = "0.1.1"
