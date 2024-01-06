@@ -6,7 +6,6 @@ edition = "2018"
 
 [dependencies]
 dotenv = "0.15.0"
+tokio = { version = "1.35.1", features = [] }
 
-webe_auth = { path = "../webe_auth" }
 webe_web = { path = "../webe_web" }
-webe_id = "0.1.1"
