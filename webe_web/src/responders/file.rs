@@ -101,25 +101,21 @@ impl FileResponder {
 
     // just make sure the full path is within the mount point
     fn validate_put_path(&self, file_path: PathBuf) -> ValidationResult {
-        match file_path.canonicalize() {
-            Ok(abs_file_path) => {
-                if abs_file_path.starts_with(&self.mount_point) {
-                    if abs_file_path.is_dir() {
-                        return Err(Status::from_standard_code(404)); // path is a dir, can't replace dirs
-                    }
-                    if abs_file_path.is_symlink() {
-                        return Err(Status::from_standard_code(404)); // can't replace symlinks
-                    }
-                    return Ok(Some(Box::new(abs_file_path)));
-                } else {
-                    return Err(Status::from_standard_code(404)); // not in mounted directory or not a file
-                }
+        if file_path.starts_with(&self.mount_point) {
+            if file_path.is_dir() {
+                return Err(Status::from_standard_code(404)); // path is a dir, can't replace dirs
             }
-            Err(_error) => return Err(Status::from_standard_code(404)), // not found or failed to canonicalize
+            if file_path.is_symlink() {
+                return Err(Status::from_standard_code(404)); // can't replace symlinks
+            }
+            return Ok(Some(Box::new(file_path)));
+        } else {
+            return Err(Status::from_standard_code(404)); // not in mounted directory or not a file
         }
     }
 
     // returns a response with a file reader from the filesystem
+    // TODO: need to respect requested encoding?
     fn respond_to_get(&self, request: &Request, path_box: Box<PathBuf>) -> Result<Response, u16> {
         match path_box.metadata() {
             Ok(meta) => {
@@ -146,8 +142,29 @@ impl FileResponder {
         }
     }
 
-    fn respond_to_put(&self, request: &Request, path: Box<PathBuf>) -> Result<Response, u16> {
-      return Err(501);
+    async fn respond_to_put(
+        &self,
+        request: &mut Request<'_>,
+        path: Box<PathBuf>,
+    ) -> Result<Response, u16> {
+        dbg!(&request.headers);
+        let create_file_result = tokio::fs::File::create(path.as_ref()).await;
+        match create_file_result {
+            Ok(mut file) => match request.message_body.as_mut() {
+                Some(body) => match tokio::io::copy_buf(body, &mut file).await {
+                    Ok(_) => {
+                        return Ok(Response::new(204));
+                    }
+                    Err(_) => return Err(500),
+                },
+                None => return Err(400),
+            },
+            Err(err) => {
+                println!("Could not create file at: {:?}", path);
+                println!("{}", err);
+                return Err(500);
+            }
+        }
     }
 }
 
@@ -193,7 +210,7 @@ impl Responder for FileResponder {
                     Ok(path_box) => {
                         match request.method.as_str() {
                             "GET" => return self.respond_to_get(request, path_box),
-                            "PUT" => return self.respond_to_put(request, path_box),
+                            "PUT" => return self.respond_to_put(request, path_box).await,
                             _ => return Err(405), // method not allowed
                         }
                     }

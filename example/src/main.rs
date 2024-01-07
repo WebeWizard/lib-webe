@@ -41,11 +41,17 @@ async fn main() {
     );
     route_map.add_route(options_route, options_responder);
 
-    // -- static files
+    // -- get static files
     let file_route = Route::new("GET", "/<path>");
     let file_responder = FileResponder::new(".".to_owned(), "<path>".to_owned())
         .expect("Failed to create FileResponder");
     route_map.add_route(file_route, file_responder);
+
+    // -- test putting files
+    let file_put_route = Route::new("PUT", "/<path>");
+    let file_put_responder = FileResponder::new(".".to_owned(), "<path>".to_owned())
+        .expect("Failed to create FileResponder");
+    route_map.add_route(file_put_route, file_put_responder);
 
     println!("Done");
 
