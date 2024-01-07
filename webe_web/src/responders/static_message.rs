@@ -2,6 +2,8 @@ use std::boxed::Box;
 use std::collections::HashMap;
 use std::io::Cursor;
 
+use async_trait::async_trait;
+
 use super::Request;
 use super::Responder;
 use super::Response;
@@ -47,8 +49,9 @@ impl StaticResponder {
   }
 }
 
+#[async_trait]
 impl Responder for StaticResponder {
-  fn build_response(
+  async fn build_response(
     &self,
     _request: &mut Request,
     _params: &Vec<(String, String)>,

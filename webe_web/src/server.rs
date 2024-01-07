@@ -275,7 +275,7 @@ async fn process_stream(
 
               // validate the request is able to be responded to with the selected responder
               if let Ok(validation_result) = responder.validate(&request, &params, None) {
-                match responder.build_response(&mut request, &params, validation_result) {
+                match responder.build_response(&mut request, &params, validation_result).await {
                   Ok(new_response) => response = new_response,
                   Err(error_code) => {
                     response = StaticResponder::from_standard_code(error_code).quick_response()

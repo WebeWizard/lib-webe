@@ -1,3 +1,5 @@
+use async_trait::async_trait;
+
 use super::Request;
 use super::Responder;
 use super::Response;
@@ -19,8 +21,9 @@ impl OptionsResponder {
   }
 }
 
+#[async_trait]
 impl Responder for OptionsResponder {
-  fn build_response(
+  async fn build_response(
     &self,
     _request: &mut Request,
     _params: &Vec<(String, String)>,

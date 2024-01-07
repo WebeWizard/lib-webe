@@ -48,6 +48,8 @@ async fn main() {
     route_map.add_route(file_route, file_responder);
 
     println!("Done");
+
     // start the server
-    let _start_result = web_server.start(route_map);
+    println!("Running the server...");
+    let _start_result = web_server.start(route_map).await;
 }

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::path::PathBuf;
 
+use async_trait::async_trait;
 use tokio::io::BufReader;
 
 use super::Request;
@@ -78,7 +79,7 @@ impl FileResponder {
         match file_path.canonicalize() {
             Ok(abs_file_path) => {
                 // at the moment we only return files. no directory
-                if abs_file_path.starts_with(self.mount_point) {
+                if abs_file_path.starts_with(&self.mount_point) {
                     if abs_file_path.is_file() {
                         return Ok(Some(Box::new(abs_file_path)));
                     } else if self.use_index && abs_file_path.is_dir() {
@@ -102,7 +103,7 @@ impl FileResponder {
     fn validate_put_path(&self, file_path: PathBuf) -> ValidationResult {
         match file_path.canonicalize() {
             Ok(abs_file_path) => {
-                if abs_file_path.starts_with(self.mount_point) {
+                if abs_file_path.starts_with(&self.mount_point) {
                     if abs_file_path.is_dir() {
                         return Err(Status::from_standard_code(404)); // path is a dir, can't replace dirs
                     }
@@ -145,9 +146,12 @@ impl FileResponder {
         }
     }
 
-    fn respond_to_put(&self, request: &Request, path: Box<PathBuf>) -> Result<Response, u16> {}
+    fn respond_to_put(&self, request: &Request, path: Box<PathBuf>) -> Result<Response, u16> {
+      return Err(501);
+    }
 }
 
+#[async_trait]
 impl Responder for FileResponder {
     // tests if the provided path exists
     fn validate(
@@ -176,7 +180,7 @@ impl Responder for FileResponder {
         }
     }
 
-    fn build_response(
+    async fn build_response(
         &self,
         request: &mut Request,
         _params: &Vec<(String, String)>,

@@ -6,6 +6,8 @@ use super::ValidationResult;
 
 use super::file::{FileResponder, FileResponderError};
 
+use async_trait::async_trait;
+
 // Used to capture stray endpoints that would normally be handled within the SPA
 // Ex.  User refreshes and loads a /flash/23434455 url
 pub struct SPAResponder {
@@ -29,6 +31,7 @@ impl SPAResponder {
   }
 }
 
+#[async_trait]
 impl Responder for SPAResponder {
   fn validate(
     &self,
@@ -45,7 +48,7 @@ impl Responder for SPAResponder {
       .validate(request, &fudged_params, validation);
   }
 
-  fn build_response(
+  async fn build_response(
     &self,
     request: &mut Request,
     params: &Vec<(String, String)>,
@@ -53,6 +56,6 @@ impl Responder for SPAResponder {
   ) -> Result<Response, u16> {
     return self
       .file_responder
-      .build_response(request, params, validation);
+      .build_response(request, params, validation).await;
   }
 }
