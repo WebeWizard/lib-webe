@@ -1,7 +1,7 @@
-extern crate tokio;
+extern crate pin_project_lite;
 extern crate serde;
 extern crate serde_json;
-extern crate pin_project_lite;
+extern crate tokio;
 
 pub mod constants;
 pub mod encoding;

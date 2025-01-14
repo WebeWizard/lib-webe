@@ -116,7 +116,7 @@ impl FileResponder {
 
     // returns a response with a file reader from the filesystem
     // TODO: need to respect requested encoding?
-    fn respond_to_get(&self, request: &Request, path_box: Box<PathBuf>) -> Result<Response, u16> {
+    fn respond_to_get(&self, _request: &Request, path_box: Box<PathBuf>) -> Result<Response, u16> {
         match path_box.metadata() {
             Ok(meta) => {
                 let size = meta.len();
@@ -171,7 +171,7 @@ impl FileResponder {
 #[async_trait]
 impl Responder for FileResponder {
     // tests if the provided path exists
-    fn validate(
+    async fn validate(
         &self,
         request: &Request,
         params: &Vec<(String, String)>,

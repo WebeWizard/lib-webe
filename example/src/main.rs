@@ -5,6 +5,7 @@ extern crate webe_web;
 use std::env;
 use std::net::Ipv4Addr;
 
+use webe_web::responders::static_message::StaticResponder;
 use webe_web::responders::{file::FileResponder, options::OptionsResponder};
 use webe_web::server::{Route, RouteMap, Server};
 
@@ -40,6 +41,11 @@ async fn main() {
         "content-type, x-webe-token".to_owned(),
     );
     route_map.add_route(options_route, options_responder);
+
+    // -- hello world
+    let root_route = Route::new("GET", "/");
+    let static_responder = StaticResponder::new(200, "Hello World".to_string());
+    route_map.add_route(root_route, static_responder);
 
     // -- get static files
     let file_route = Route::new("GET", "/<path>");

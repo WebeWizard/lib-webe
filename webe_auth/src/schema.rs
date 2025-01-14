@@ -1,4 +1,4 @@
-table! {
+diesel::table! {
     webe_accounts (id) {
         id -> Unsigned<Bigint>,
         email -> Varchar,
@@ -19,7 +19,4 @@ table! {
 
 joinable!(webe_sessions -> webe_accounts (account_id));
 
-allow_tables_to_appear_in_same_query!(
-    webe_accounts,
-    webe_sessions,
-);
+allow_tables_to_appear_in_same_query!(webe_accounts, webe_sessions,);

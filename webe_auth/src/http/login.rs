@@ -1,15 +1,18 @@
 use crate::AuthManager;
 use crate::WebeAuth;
+use tokio::sync::Mutex;
 use webe_web::request::Request;
 use webe_web::responders::Responder;
 use webe_web::response::Response;
 use webe_web::validation::Validation;
 
-use std::collections::HashMap;
+use async_trait::async_trait;
 use std::io::Cursor;
+use std::sync::Arc;
 
 use serde::Deserialize;
 use serde_json;
+use tokio::io::AsyncReadExt;
 
 #[derive(Deserialize)]
 pub struct LoginForm {
@@ -17,21 +20,22 @@ pub struct LoginForm {
     pub pass: String,
 }
 
-pub struct LoginResponder<'w> {
-    auth_manager: &'w WebeAuth<'w>,
+pub struct LoginResponder {
+    auth_manager: Arc<Mutex<WebeAuth>>,
 }
 
-impl<'w> LoginResponder<'w> {
-    pub fn new(auth_manager: &'w WebeAuth) -> LoginResponder<'w> {
+impl LoginResponder {
+    pub fn new(auth_manager: Arc<Mutex<WebeAuth>>) -> LoginResponder {
         LoginResponder {
             auth_manager: auth_manager,
         }
     }
 }
 
-impl<'w> Responder for LoginResponder<'w> {
+#[async_trait]
+impl Responder for LoginResponder {
     // ALWAYS RETURN Ok(200) or Err(401) TO PREVENT LEAKING API INFORMATION
-    fn build_response(
+    async fn build_response(
         &self,
         request: &mut Request,
         _params: &Vec<(String, String)>,
@@ -39,9 +43,21 @@ impl<'w> Responder for LoginResponder<'w> {
     ) -> Result<Response, u16> {
         match &mut request.message_body {
             Some(body_reader) => {
-                match serde_json::from_reader::<_, LoginForm>(body_reader) {
+                let mut body = Vec::<u8>::new();
+                // read the entire body or error.
+                // TODO: improve workaround for serde not being able to handle async
+                body_reader
+                    .read_to_end(&mut body)
+                    .await
+                    .map_err(|_e| 400u16)?;
+                match serde_json::from_reader::<_, LoginForm>(body.as_slice()) {
                     Ok(form) => {
-                        match self.auth_manager.login(&form.email, &form.pass) {
+                        match self
+                            .auth_manager
+                            .lock()
+                            .await
+                            .login(&form.email, &form.pass)
+                        {
                             Ok(session) => {
                                 match serde_json::to_string(&session) {
                                     Ok(body) => {
@@ -54,7 +70,7 @@ impl<'w> Responder for LoginResponder<'w> {
                                             "Content-Length".to_owned(),
                                             body.len().to_string(),
                                         );
-                                        response.message_body = Some(Box::new(Cursor::new(body)));
+                                        response.message_body = Some(Box::pin(Cursor::new(body)));
                                         return Ok(response);
                                     }
                                     Err(_error) => {

@@ -7,11 +7,11 @@ use tokio::net::tcp::WriteHalf;
 use super::status::Status;
 use crate::constants::WEBE_BUFFER_SIZE;
 
-pub struct Response<'r> {
+pub struct Response {
     pub status: Status,
     pub keep_alive: bool, // flag to tell the server to keep alive after responding
     pub headers: HashMap<String, String>,
-    pub message_body: Option<Pin<Box<dyn AsyncBufRead + 'r + Send>>>,
+    pub message_body: Option<Pin<Box<dyn AsyncBufRead + Send>>>,
 }
 
 pub enum ResponseError {
@@ -19,9 +19,9 @@ pub enum ResponseError {
     WriteError,
 }
 
-impl<'r> Response<'r> {
+impl Response {
     // create an empty response from a status code
-    pub fn new(status: u16) -> Response<'r> {
+    pub fn new(status: u16) -> Response {
         let headers = HashMap::<String, String>::new();
         return Response {
             status: Status::from_standard_code(status),
@@ -31,7 +31,7 @@ impl<'r> Response<'r> {
         };
     }
 
-    pub fn from_status(status: Status) -> Response<'r> {
+    pub fn from_status(status: Status) -> Response {
         let headers = HashMap::<String, String>::new();
         return Response {
             status: status,

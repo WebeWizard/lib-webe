@@ -8,8 +8,8 @@ use tokio::net::{TcpListener, TcpStream};
 
 use super::encoding::chunked::ChunkedDecoder;
 use super::request::{Request, RequestError};
-use super::responders::static_message::StaticResponder;
 use super::responders::Responder;
+use super::responders::static_message::StaticResponder;
 use super::response::ResponseError;
 
 #[derive(PartialEq, Eq, Hash)]
@@ -257,7 +257,7 @@ async fn process_stream(
                                             Err(_error) => {
                                                 return Err(ServerError::BadRequest(
                                                     RequestError::MalformedRequestError,
-                                                ))
+                                                ));
                                             }
                                         },
                                         None => {}
@@ -279,7 +279,7 @@ async fn process_stream(
 
                             // validate the request is able to be responded to with the selected responder
                             if let Ok(validation_result) =
-                                responder.validate(&request, &params, None)
+                                responder.validate(&request, &params, None).await
                             {
                                 match responder
                                     .build_response(&mut request, &params, validation_result)

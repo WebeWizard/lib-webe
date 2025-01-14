@@ -2,10 +2,10 @@
 name = "webe_web"
 version = "0.1.0"
 authors = ["WebeWizard <webewizard@gmail.com>"]
-edition = "2018"
+edition = "2024"
 
 [dependencies]
-async-trait = "0.1.77" # witchcraft to make async work in dyn trait objects
+async-trait = "0.1.77"                                 # witchcraft to make async work in dyn trait objects
 tokio = { version = "1.35.1", features = ["full"] }
 limit_read = "0.2.0"
 serde = { version = "1.0.193", features = ["derive"] }

@@ -2,12 +2,12 @@
 name = "webe_auth"
 version = "0.1.0"
 authors = ["WebeWizard <webewizard@gmail.com>"]
-edition = "2018"
+edition = "2024"
 
 [dependencies]
-
+async-trait = "0.1.77"                                                 # witchcraft to make async work in dyn trait objects
 bcrypt = "0.15.0"
-diesel = { version = "1.4.3", features = ["mysql","chrono", "r2d2"] }
+diesel = { version = "2.2.6", features = ["mysql", "chrono", "r2d2"] }
 lettre = { version = "0.9.2", features = ["connection-pool"] }
 lettre_email = "0.9.2"
 native-tls = { version = "0.2.11", features = ["vendored"] }
