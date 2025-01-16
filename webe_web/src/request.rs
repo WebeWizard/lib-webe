@@ -112,9 +112,9 @@ async fn read_headers(
         } // an empty line marks the end of http headers
         let parts: Vec<&str> = line.splitn(2, ':').collect::<Vec<&str>>(); // note: multiline headers were deprecated in rfc7230 so we won't support them
         if parts.len() == 2 {
-            let field_name = parts[0].to_owned();
+            let field_name = parts[0].to_owned().to_lowercase();
             let field_value = parts[1].trim();
-            // TODO: need to normalize capitalization?
+            // TODO: names are lowercased above, do we need to hold on to the original?
             match headers.get_mut(&field_name) {
                 // http 1.1 rfc2616 says multiple headers with identical names can be combined with commas
                 Some(existing_value) => {
