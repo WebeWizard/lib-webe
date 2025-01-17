@@ -114,6 +114,7 @@ impl AuthManager for WebeAuth {
         let id = self.new_id()?;
         let account = Account::new(id, username, password)?;
         // save to database
+        // TODO: Handle case where account already exists
         db::AccountApi::insert(&self.db_manager, &account)?;
         // send verification email
         self.send_verify_email(&account)?;
