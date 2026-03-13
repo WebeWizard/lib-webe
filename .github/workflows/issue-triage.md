@@ -30,7 +30,7 @@ safe-outputs:
 
 # Issue triage
 
-Triage every newly opened issue in `WebeWizard/lib-webe`.
+Triage every newly opened issue in this repository.
 
 ## Goals
 
@@ -46,7 +46,7 @@ For each new issue, do all of the following in a single pass whenever possible:
 
 - This repository already has these useful labels available: `bug`, `enhancement`, `question`, and `duplicate`.
 - There do **not** appear to be dedicated priority labels in the repository. You should still determine a recommended priority (`high`, `medium`, or `low`) and include it in your comment even when you cannot apply a priority label.
-- This appears to be a very small repository. If you cannot identify a more specific maintainer from recent history or existing assignments, fall back to assigning the issue to the repository owner `WebeWizard`.
+- This appears to be a very small repository. If you cannot identify a more specific maintainer from recent history or existing assignments, fall back to assigning the issue to the repository owner `${{ github.repository_owner }}`.
 
 ## Triage procedure
 
@@ -69,7 +69,7 @@ For each new issue, do all of the following in a single pass whenever possible:
    - keep questions concrete and easy to answer
 7. Assign the issue:
    - prefer the maintainer who most likely owns the affected area based on repository history, previous related issues, or surrounding code ownership signals
-   - if there is no clear owner, assign `WebeWizard`
+   - if there is no clear owner, assign `${{ github.repository_owner }}`
 
 ## Commenting rules
 
