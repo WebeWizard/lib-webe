@@ -22,7 +22,7 @@
 # For more information: https://github.github.com/gh-aw/introduction/overview/
 #
 #
-# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"620c123d7aee691d011c65135f7c2724787e0bb634b62b136d0c1e1fe364d555","compiler_version":"v0.58.2","strict":true}
+# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"bd67fe48a24c0402bd84636ecef2128ebb52410af6463575c59ddf4cc1890c4c","compiler_version":"v0.58.2","strict":true}
 
 name: "Dependabot Triage Agent"
 "on":

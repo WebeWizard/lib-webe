@@ -1,6 +1,6 @@
 ---
 on:
-  schedule: daily on weekdays
+  schedule: daily on weekdays # fuzzy schedule; compiler maps to a deterministic weekday cron in the lock file
   workflow_dispatch:
 
 permissions:
