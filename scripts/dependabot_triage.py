@@ -13,12 +13,18 @@ from typing import Any, Dict, List, Optional
 
 GITHUB_API = "https://api.github.com"
 OUTPUT_DIR = Path('.triage-agent/dependabot')
+MAX_LINE_CONTENT_LENGTH = 500
+MAX_EVIDENCE_USAGES = 100
 CODE_FILE_EXTENSIONS = {
     '.rs', '.py', '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.java', '.kt',
     '.go', '.rb', '.php', '.cs', '.scala', '.swift', '.c', '.cc', '.cpp', '.h',
     '.hpp', '.toml', '.json', '.yaml', '.yml', '.xml', '.gradle', '.kts', '.lock',
     '.md'
 }
+
+
+def package_info(alert: Dict[str, Any]) -> Dict[str, Any]:
+    return ((alert.get('dependency') or {}).get('package') or {})
 
 
 def run_git(args: List[str], check: bool = True) -> str:
@@ -108,7 +114,7 @@ def find_package_usage_lines(package_name: str, manifest_path: Optional[str]) ->
         lines = text.splitlines()
         for idx, line in enumerate(lines, start=1):
             if any(term in line for term in terms):
-                usage.append({'file': rel_path, 'line': idx, 'content': line.strip()[:500]})
+                usage.append({'file': rel_path, 'line': idx, 'content': line.strip()[:MAX_LINE_CONTENT_LENGTH]})
 
     if manifest_path and not any(u['file'] == manifest_path for u in usage):
         path = Path(manifest_path)
@@ -117,7 +123,7 @@ def find_package_usage_lines(package_name: str, manifest_path: Optional[str]) ->
                 lines = path.read_text(encoding='utf-8').splitlines()
                 for idx, line in enumerate(lines, start=1):
                     if any(term in line for term in terms):
-                        usage.append({'file': manifest_path, 'line': idx, 'content': line.strip()[:500]})
+                        usage.append({'file': manifest_path, 'line': idx, 'content': line.strip()[:MAX_LINE_CONTENT_LENGTH]})
             except UnicodeDecodeError:
                 pass
 
@@ -167,13 +173,14 @@ def find_best_owner(usages: List[Dict[str, Any]]) -> Dict[str, str]:
 
 def safe_alert_filename(alert: Dict[str, Any]) -> str:
     number = alert.get('number', 'unknown')
-    dep_name = (((alert.get('dependency') or {}).get('package') or {}).get('name') or 'dependency')
+    dep_name = package_info(alert).get('name') or 'dependency'
     slug = re.sub(r'[^a-zA-Z0-9._-]+', '-', dep_name).strip('-').lower() or 'dependency'
     return f"alert-{number}-{slug}.json"
 
 
 def build_record(alert: Dict[str, Any]) -> Dict[str, Any]:
-    package_name = (((alert.get('dependency') or {}).get('package') or {}).get('name') or 'unknown')
+    dependency_package = package_info(alert)
+    package_name = dependency_package.get('name') or 'unknown'
     manifest_path = alert.get('manifest_path')
     usages = find_package_usage_lines(package_name, manifest_path)
     owner = find_best_owner(usages)
@@ -186,7 +193,7 @@ def build_record(alert: Dict[str, Any]) -> Dict[str, Any]:
         'severity': ((alert.get('security_vulnerability') or {}).get('severity')),
         'dependency': {
             'name': package_name,
-            'ecosystem': (((alert.get('dependency') or {}).get('package') or {}).get('ecosystem')),
+            'ecosystem': dependency_package.get('ecosystem'),
             'manifest_path': manifest_path,
             'scope': ((alert.get('dependency') or {}).get('scope')),
         },
@@ -199,7 +206,7 @@ def build_record(alert: Dict[str, Any]) -> Dict[str, Any]:
         'recommended_user': owner,
         'evidence': {
             'matching_usage_count': len(usages),
-            'matching_usages': usages[:100],
+            'matching_usages': usages[:MAX_EVIDENCE_USAGES],
             'method': 'package-name usage search + git blame on matching lines',
         },
         'analyzed_at': os.environ.get('TRIAGE_ANALYZED_AT'),
@@ -243,7 +250,7 @@ def main() -> int:
         except urllib.error.HTTPError as exc:
             print(f'Failed to fetch Dependabot alerts: HTTP {exc.code}', file=sys.stderr)
             return 1
-        except Exception as exc:  # noqa: BLE001
+        except (RuntimeError, urllib.error.URLError, json.JSONDecodeError, ValueError) as exc:
             print(f'Failed to fetch Dependabot alerts: {exc}', file=sys.stderr)
             return 1
 
