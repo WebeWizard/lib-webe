@@ -11,7 +11,7 @@ permissions:
 
 tools:
   github:
-    toolsets: [default]
+    toolsets: [default, dependabot]
 
 network: defaults
 
