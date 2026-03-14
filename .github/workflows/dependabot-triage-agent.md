@@ -1,0 +1,62 @@
+---
+on:
+  schedule: daily on weekdays
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  security-events: read
+
+tools:
+  github:
+    toolsets: [default]
+
+network: defaults
+
+safe-outputs:
+  create-pull-request:
+---
+
+# Dependabot Triage Agent
+
+Generate and maintain daily Dependabot triage artifacts for open Dependabot alerts.
+
+## Required Behavior
+
+1. Enumerate all **open Dependabot alerts** for the current repository.
+2. For each alert, collect:
+   - alert number/state/severity
+   - dependency package name/ecosystem/manifest path/scope
+   - advisory metadata (GHSA/CVE/summary/url)
+3. Infer likely ownership:
+   - search tracked repository files for package usage mentions
+   - for each usage line, use `git blame` to collect author name/email
+   - choose the most frequent author as `recommended_user`
+   - if no owner evidence exists, use `unknown` values
+4. Write one JSON artifact per alert to `.triage-agent/dependabot/` using:
+   - filename: `alert-<number>-<package-slug>.json`
+   - stable, pretty JSON format with deterministic key ordering
+5. Remove stale JSON files in `.triage-agent/dependabot/` that do not correspond to currently open alerts.
+
+## Output Contract
+
+Each JSON file must include:
+
+- `alert_number`
+- `state`
+- `severity`
+- `dependency` (`name`, `ecosystem`, `manifest_path`, `scope`)
+- `advisory` (`ghsa_id`, `cve_id`, `summary`, `url`)
+- `recommended_user` (`name`, `email`)
+- `evidence` (`matching_usage_count`, `matching_usages`, `method`)
+- `analyzed_at` (workflow run timestamp in ISO-8601 when available)
+
+## Pull Request Rules
+
+- If no triage output changes are needed, do **not** create a pull request.
+- If files changed under `.triage-agent/dependabot/`, create a single pull request with:
+  - title: `chore: update dependabot triage output`
+  - concise body summarizing alert count and changed triage files
+  - only the relevant triage artifact changes
