@@ -220,7 +220,7 @@ jobs:
           token = os.environ.get("GITHUB_TOKEN")
           alerts_file = os.environ.get("DEPENDABOT_ALERTS_FILE")
           if not repo:
-              print("GITHUB_REPOSITORY is required", file=sys.stderr)
+              print("GITHUB_REPOSITORY is required for Dependabot triage", file=sys.stderr)
               raise SystemExit(2)
           if not token and not alerts_file:
               print("GITHUB_TOKEN is required when DEPENDABOT_ALERTS_FILE is not set", file=sys.stderr)
