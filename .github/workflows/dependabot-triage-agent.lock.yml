@@ -22,7 +22,7 @@
 # For more information: https://github.github.com/gh-aw/introduction/overview/
 #
 #
-# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"8929765585f9e7148b1f5ee53ee0d6e02b3beb7ad72b954be44619a3244c0aed","compiler_version":"v0.58.2","strict":true}
+# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"60143055398970e906ee53716d3ac8e737cb3b5abc409335eb57b2b014dd45c0","compiler_version":"v0.58.2","strict":true}
 
 name: "Dependabot Triage Agent"
 "on":
@@ -31,11 +31,7 @@ name: "Dependabot Triage Agent"
     # Friendly format: daily (scattered)
   workflow_dispatch:
 
-permissions:
-  contents: read
-  issues: read
-  pull-requests: write
-  security-events: read
+permissions: {}
 
 concurrency:
   group: "gh-aw-${{ github.workflow }}"
@@ -237,7 +233,7 @@ jobs:
     permissions:
       contents: read
       issues: read
-      pull-requests: write
+      pull-requests: read
       security-events: read
     concurrency:
       group: "gh-aw-copilot-${{ github.workflow }}"
