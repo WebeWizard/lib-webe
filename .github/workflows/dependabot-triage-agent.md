@@ -38,10 +38,10 @@ Generate and maintain daily Dependabot triage artifacts for open Dependabot aler
    - for each usage line, use `git blame` to collect author name/email
    - choose the most frequent author as `recommended_user`
    - if no owner evidence exists, use `unknown` values
-4. Write one JSON artifact per alert to `.triage-agent/dependabot/` using:
+4. Write one JSON artifact per alert to `triage/dependabot/` using:
    - filename: `alert-<number>-<package-slug>.json`
    - stable, pretty JSON format with deterministic key ordering
-5. Remove stale JSON files in `.triage-agent/dependabot/` that do not correspond to currently open alerts.
+5. Remove stale JSON files in `triage/dependabot/` that do not correspond to currently open alerts.
 
 ## Output Contract
 
@@ -59,7 +59,7 @@ Each JSON file must include:
 ## Pull Request Rules
 
 - If no triage output changes are needed, do **not** create a pull request.
-- If files changed under `.triage-agent/dependabot/`, create a single pull request with:
+- If files changed under `triage/dependabot/`, create a single pull request with:
   - title: `chore: update dependabot triage output`
   - concise body summarizing alert count and changed triage files
   - only the relevant triage artifact changes
