@@ -1,0 +1,46 @@
+{
+  "advisory": {
+    "cve_id": "CVE-2021-37713",
+    "ghsa_id": "GHSA-5955-9wpr-37jh",
+    "summary": "Arbitrary File Creation/Overwrite on Windows via insufficient relative path sanitization",
+    "url": ""
+  },
+  "alert_number": 20,
+  "analyzed_at": "2026-03-15T00:51:37.697Z",
+  "dependency": {
+    "ecosystem": "npm",
+    "manifest_path": "package-lock.json",
+    "name": "tar",
+    "scope": "development"
+  },
+  "evidence": {
+    "matching_usage_count": 3,
+    "matching_usages": [
+      {
+        "file": "gulpfile.coffee",
+        "line": 1,
+        "text": "{src, dest, pipe, series} = require 'gulp'"
+      },
+      {
+        "file": "gulpfile.js",
+        "line": 4,
+        "text": "module.exports = require('./gulpfile.coffee');"
+      },
+      {
+        "file": "package.json",
+        "line": 11,
+        "text": "    \"gulp\": \"^4.0.2\""
+      }
+    ],
+    "method": "git-blame",
+    "top_level_dependencies_considered": [
+      "gulp"
+    ]
+  },
+  "recommended_user": {
+    "email": "justin.leis@webewizard.com",
+    "name": "Justin Leis"
+  },
+  "severity": "high",
+  "state": "open"
+}

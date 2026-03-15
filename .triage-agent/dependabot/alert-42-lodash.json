@@ -1,0 +1,36 @@
+{
+  "advisory": {
+    "cve_id": "CVE-2025-13465",
+    "ghsa_id": "GHSA-xxjr-mmjv-4gpg",
+    "summary": "Lodash has Prototype Pollution Vulnerability in `_.unset` and `_.omit` functions",
+    "url": ""
+  },
+  "alert_number": 42,
+  "analyzed_at": "2026-03-15T00:51:37.697Z",
+  "dependency": {
+    "ecosystem": "npm",
+    "manifest_path": "package-lock.json",
+    "name": "lodash",
+    "scope": "development"
+  },
+  "evidence": {
+    "matching_usage_count": 1,
+    "matching_usages": [
+      {
+        "file": "package.json",
+        "line": 13,
+        "text": "    \"node-elm-compiler\": \"^5.0.4\""
+      }
+    ],
+    "method": "git-blame",
+    "top_level_dependencies_considered": [
+      "node-elm-compiler"
+    ]
+  },
+  "recommended_user": {
+    "email": "justin.leis@webewizard.com",
+    "name": "Justin Leis"
+  },
+  "severity": "medium",
+  "state": "open"
+}
