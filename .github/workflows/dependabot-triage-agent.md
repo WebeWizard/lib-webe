@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
   issues: read
-  pull-requests: read
+  pull-requests: write
   security-events: read
 
 tools:

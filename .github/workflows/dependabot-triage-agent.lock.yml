@@ -34,7 +34,7 @@ name: "Dependabot Triage Agent"
 permissions:
   contents: read
   issues: read
-  pull-requests: read
+  pull-requests: write
   security-events: read
 
 concurrency:
@@ -237,7 +237,7 @@ jobs:
     permissions:
       contents: read
       issues: read
-      pull-requests: read
+      pull-requests: write
       security-events: read
     concurrency:
       group: "gh-aw-copilot-${{ github.workflow }}"
