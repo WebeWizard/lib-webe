@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ci:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        # Keep clippy visible without failing on the current legacy warning backlog.
+        run: cargo clippy --all-targets
+
+      - name: Build
+        # Default members exclude webe_auth because it requires libmysqlclient locally.
+        run: cargo build
+
+      - name: Test
+        # webe_auth tests require a running MySQL instance and SMTP credentials;
+        # skip that crate in CI. Legacy server tests are marked #[ignore].
+        run: cargo test
