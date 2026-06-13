@@ -1,0 +1,10 @@
+[package]
+name = "basic_server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dotenvy = "0.15"
+tokio.workspace = true
+
+webe_web = { path = "../../crates/webe_web" }

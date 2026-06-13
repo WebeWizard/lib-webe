@@ -1,8 +1,48 @@
+[package]
+name = "webe"
+version.workspace = true
+edition.workspace = true
+
 [workspace]
+resolver = "3"
 members = [
-  "example",
-  "webe_args",
-  "webe_auth",
-  "webe_log",
-  "webe_web",
+  "crates/webe_args",
+  "crates/webe_auth",
+  "crates/webe_log",
+  "crates/webe_web",
+  "examples/basic_server",
 ]
+default-members = [
+  ".",
+  "crates/webe_args",
+  "crates/webe_log",
+  "crates/webe_web",
+  "examples/basic_server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[workspace.dependencies]
+async-trait = "0.1.77"
+serde = { version = "1.0.193", features = ["derive"] }
+serde_json = "1.0.108"
+tokio = { version = "1.35.1", features = ["full"] }
+
+[features]
+default = ["web", "log", "args"]
+web  = ["dep:webe_web"]
+auth = ["dep:webe_auth"]
+log  = ["dep:webe_log"]
+args = ["dep:webe_args"]
+
+[dependencies]
+webe_web  = { path = "crates/webe_web",  optional = true }
+webe_auth = { path = "crates/webe_auth", optional = true }
+webe_log  = { path = "crates/webe_log",  optional = true }
+webe_args = { path = "crates/webe_args", optional = true }
+
+[dev-dependencies]
+dotenvy = "0.15"

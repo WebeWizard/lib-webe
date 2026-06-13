@@ -2,6 +2,19 @@
 
 This project aims to provide a set of tools for creating fast and stable Rust application servers suitable for a hobbyist developer.
 
+## Workspace Layout
+
+The repository is a Rust workspace with the root crate acting as the facade library. Use the root `webe` crate when you want the whole toolkit:
+
+- `webe::web` re-exports `webe_web`
+- `webe::auth` re-exports `webe_auth` behind the `auth` feature
+- `webe::log` re-exports `webe_log`
+- `webe::args` re-exports `webe_args`
+
+Implementation crates live under `crates/`, and runnable examples live under `examples/`.
+
+Default builds skip `webe_auth` because it requires local MySQL client libraries. Enable it explicitly with `--features auth` when the auth stack is needed.
+
 ## HTTP Server
 Using HTTP 1.1 Spec as a reference but not a requirement.
 
