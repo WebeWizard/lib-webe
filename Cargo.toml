@@ -8,6 +8,7 @@ resolver = "3"
 members = [
   "crates/webe_args",
   "crates/webe_auth",
+  "crates/webe_id",
   "crates/webe_log",
   "crates/webe_web",
   "examples/basic_server",
@@ -15,6 +16,7 @@ members = [
 default-members = [
   ".",
   "crates/webe_args",
+  "crates/webe_id",
   "crates/webe_log",
   "crates/webe_web",
   "examples/basic_server",
@@ -37,12 +39,15 @@ web  = ["dep:webe_web"]
 auth = ["dep:webe_auth"]
 log  = ["dep:webe_log"]
 args = ["dep:webe_args"]
+id = ["dep:webe_id"]
+id-tokio = ["id", "webe_id/tokio"]
 
 [dependencies]
 webe_web  = { path = "crates/webe_web",  optional = true }
 webe_auth = { path = "crates/webe_auth", optional = true }
 webe_log  = { path = "crates/webe_log",  optional = true }
 webe_args = { path = "crates/webe_args", optional = true }
+webe_id   = { path = "crates/webe_id",   optional = true }
 
 [dev-dependencies]
 dotenvy = "0.15"

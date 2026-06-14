@@ -13,3 +13,7 @@ pub use webe_log as log;
 /// Command-line argument parsing.
 #[cfg(feature = "args")]
 pub use webe_args as args;
+
+/// Compact, sortable unique ID generation.
+#[cfg(feature = "id")]
+pub use webe_id as id;

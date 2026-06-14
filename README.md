@@ -10,6 +10,7 @@ The repository is a Rust workspace with the root crate acting as the facade libr
 - `webe::auth` re-exports `webe_auth` behind the `auth` feature
 - `webe::log` re-exports `webe_log`
 - `webe::args` re-exports `webe_args`
+- `webe::id` re-exports `webe_id` behind the `id` feature
 
 Implementation crates live under `crates/`, and runnable examples live under `examples/`.
 
@@ -36,4 +37,26 @@ A request to `/post/123/edit` would also match `/post/<post_num>`. And the value
 
 
 ## Unique ID Generation
-Custom unique id generator based on Twitter's Snowflake.  Currently located at https://github.com/WebeWizard/WebeID
+Webe includes a compact, sortable 64-bit unique ID generator through the optional `id` facade feature:
+
+```toml
+[dependencies]
+webe = { version = "0.1", features = ["id"] }
+```
+
+```rust
+let mut generator = webe::id::Generator::builder(webe::id::NodeId::from_u8(1)).build()?;
+let id = generator.generate()?;
+let components = id.components();
+```
+
+Each WebeID stores 40 bits of milliseconds since a custom epoch, 8 bits of node identity, and 16 bits of per-node sequence. Default generation fails fast with typed errors when the clock rewinds, the time range is exhausted, or one node consumes all 65,536 sequence values in one millisecond.
+
+Enable `id-tokio` when Tokio callers want the optional bounded backpressure helper:
+
+```toml
+[dependencies]
+webe = { version = "0.1", features = ["id-tokio"] }
+```
+
+The direct implementation crate is `webe_id`; see `crates/webe_id/README.md` for restart-marker guidance, limits, errors, and benchmark reporting.

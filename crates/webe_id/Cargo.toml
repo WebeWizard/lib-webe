@@ -1,0 +1,17 @@
+[package]
+name = "webe_id"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+readme = "README.md"
+
+[features]
+default = []
+tokio = ["dep:tokio"]
+
+[dependencies]
+tokio = { workspace = true, optional = true }
+
+[[bench]]
+name = "generation"
+harness = false

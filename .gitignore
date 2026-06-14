@@ -12,3 +12,19 @@ node_modules
 
 __pycache__/
 *.pyc
+
+# rust
+debug/
+release/
+*.rlib
+*.prof*
+*.log
+.env*
+
+# editor and OS files
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/
