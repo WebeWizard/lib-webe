@@ -1,28 +1,61 @@
 use std::env;
 use std::net::Ipv4Addr;
+use std::process;
 
+use webe_args::{OptionDef, OptionResult, Registry};
 use webe_web::responders::static_message::StaticResponder;
 use webe_web::responders::{file::FileResponder, options::OptionsResponder};
 use webe_web::server::{Route, RouteMap, Server};
 
 #[tokio::main]
 async fn main() {
-    // load environment
-    print!("Loading Environment Config......");
-    dotenvy::dotenv().expect("Failed to load environment config file");
+    // declare the command-line options
+    print!("Parsing command-line options......");
+    let mut registry = Registry::new();
+    registry
+        .add(
+            OptionDef::value("bind-ip")
+                .short("i")
+                .description("IPv4 address for the web server to bind")
+                .required()
+                .validate(|v| v.parse::<Ipv4Addr>().is_ok()),
+        )
+        .add(
+            OptionDef::value("bind-port")
+                .short("p")
+                .description("TCP port for the web server to bind")
+                .required()
+                .validate(|v| v.parse::<u16>().is_ok()),
+        );
+
+    let tokens: Vec<String> = env::args().skip(1).collect();
+
+    // validate the whole command line up front
+    let report = registry.validate(&tokens);
+    if !report.is_success() {
+        eprintln!("Failed");
+        for failure in report.failures() {
+            eprintln!("  {failure}");
+        }
+        eprintln!("usage: basic_server --bind-ip <IPv4> --bind-port <PORT>");
+        process::exit(1);
+    }
     println!("Done");
 
     // create the web server
     print!("Setting up Web Server and Routes......");
-    let web_bind_ip = env::var("WEB_BIND_IP").expect("Failed to load Web Server Bind IP from .env");
-    let web_bind_port =
-        env::var("WEB_BIND_PORT").expect("Failed to load Web Server Bind PORT from .env");
-    let ip = web_bind_ip
-        .parse::<Ipv4Addr>()
-        .expect("Failed to parse WEB_BIND_IP as Ipv4Addr");
-    let port = web_bind_port
-        .parse::<u16>()
-        .expect("Failed to parse WEB_BIND_PORT as u16");
+    let ip = match registry.read("bind-ip", &tokens) {
+        Ok(OptionResult::Value(value)) => value
+            .parse::<Ipv4Addr>()
+            .expect("validated bind-ip should parse as Ipv4Addr"),
+        _ => unreachable!("bind-ip is required and validated above"),
+    };
+    let port = match registry.read("bind-port", &tokens) {
+        Ok(OptionResult::Value(value)) => value
+            .parse::<u16>()
+            .expect("validated bind-port should parse as u16"),
+        _ => unreachable!("bind-port is required and validated above"),
+    };
     let web_server = Server::new(&ip, &port)
         .await
         .expect("Failed to create web server");

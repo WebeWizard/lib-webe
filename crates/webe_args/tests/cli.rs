@@ -1,299 +1,279 @@
-use std::panic::{self, AssertUnwindSafe};
+//! Default-harness integration tests for `webe_args`.
+//!
+//! These tests exercise the public API over caller-supplied token slices, so they
+//! run under the standard `cargo test` harness without any manual command-line
+//! input. They cover the User Story 1 read paths, the all-failures
+//! deterministic-order report (quickstart scenario 17), and a traceability pass
+//! confirming every quickstart scenario (1–17) maps to a passing assertion.
 
-use webe_args::{ArgError, ArgOpts, Args};
+use webe_args::{OptionDef, OptionResult, ParseFailure, Registry};
 
-// NOTE:  we have to circumvent the built-in cargo test harness
-// in order to pass command line arguments into the test
-// NOTE:  Run this cargo test with the following command:
-// cargo test -p webe_args --test cli -- --nocapture -- -- --with_value this_is_value --as_flag ignore_this -s --bad_val WebeIsBad --good_val "webe is great"
-fn main() {
-    // --- Prepare for Tests ---
-    // verify that this test was launched with required command line input
-    let expected_args = vec![
-        "--nocapture",
-        "--",
-        "--",
-        "--with_value",
-        "this_is_value",
-        "--as_flag",
-        "ignore_this",
-        "-s",
-        "--bad_val",
-        "WebeIsBad",
-        "--good_val",
-        "webe is great",
-    ];
-    let mut provided_args = std::env::args().collect::<Vec<String>>();
-    provided_args.remove(0); // removes the first env_arg because it contains the target path
-    if expected_args != provided_args {
-        panic!(
-            "\r\nUnexpected command line text provided.  Please run this test using the following text:\r\n{}",
-            "cargo test -p webe_args --test cli -- --nocapture -- -- --with_value this_is_value --as_flag ignore_this -s --bad_val WebeIsBad --good_val \"webe is great\""
+/// Helper: build a `Vec<String>` token slice from string literals.
+fn tokens(parts: &[&str]) -> Vec<String> {
+    parts.iter().map(|s| s.to_string()).collect()
+}
+
+/// Registry used across the read-path tests: a required, validated value option
+/// with a short alias, an optional value option, and a flag with a short alias.
+fn sample_registry() -> Registry {
+    let mut registry = Registry::new();
+    registry
+        .add(
+            OptionDef::value("port")
+                .short("p")
+                .required()
+                .validate(|v| v.parse::<u16>().is_ok()),
+        )
+        .add(OptionDef::value("name"))
+        .add(OptionDef::flag("verbose").short("v"));
+    registry
+}
+
+// --- User Story 1: read paths over supplied tokens ---
+
+#[test]
+fn reads_value_option() {
+    let registry = sample_registry();
+    let tokens = tokens(&["--port", "8080"]);
+    assert_eq!(
+        registry.read("port", &tokens).unwrap(),
+        OptionResult::Value("8080".to_string())
+    );
+}
+
+#[test]
+fn reads_flag_option() {
+    let registry = sample_registry();
+    let tokens = tokens(&["--verbose"]);
+    assert_eq!(
+        registry.read("verbose", &tokens).unwrap(),
+        OptionResult::Flag
+    );
+}
+
+#[test]
+fn reads_flag_via_short_alias() {
+    let registry = sample_registry();
+    let tokens = tokens(&["-v"]);
+    assert_eq!(
+        registry.read("verbose", &tokens).unwrap(),
+        OptionResult::Flag
+    );
+}
+
+#[test]
+fn omitted_optional_is_absent() {
+    let registry = sample_registry();
+    assert_eq!(
+        registry.read("name", &tokens(&[])).unwrap(),
+        OptionResult::Absent
+    );
+}
+
+#[test]
+fn value_is_preserved_verbatim() {
+    let registry = sample_registry();
+    let tokens = tokens(&["--name", "webe is great"]);
+    assert_eq!(
+        registry.read("name", &tokens).unwrap(),
+        OptionResult::Value("webe is great".to_string())
+    );
+}
+
+// --- Scenario 17: all failures reported in deterministic order ---
+
+#[test]
+fn reports_all_failures_in_deterministic_order() {
+    let mut registry = Registry::new();
+    registry.add(OptionDef::value("port").required());
+
+    let tokens = tokens(&["--bogus", "extra", "--port"]);
+    let report = registry.validate(&tokens);
+
+    assert_eq!(
+        report.failures(),
+        &[
+            ParseFailure::UnknownOption("--bogus".to_string()),
+            ParseFailure::UnexpectedArgument("extra".to_string()),
+            ParseFailure::MissingValue("port".to_string()),
+        ]
+    );
+}
+
+// --- Traceability: every quickstart scenario (1–17) maps to a passing check ---
+
+#[test]
+fn quickstart_scenarios_are_covered() {
+    // Scenario 1: required value present -> read value.
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::value("port").required());
+        assert_eq!(
+            r.read("port", &tokens(&["--port", "8080"])).unwrap(),
+            OptionResult::Value("8080".to_string())
         );
     }
 
-    // --- Run Tests ---
-    // test arguments with_value
-    print!("Running Test:  with_value()...");
-    with_value();
-    println!("Ok");
-
-    // test arguments as flags
-    print!("Running Test:  as_flag()...");
-    as_flag();
-    println!("Ok");
-
-    // test getting arguments with short name
-    print!("Running Test:  get_short()...");
-    get_short();
-    println!("Ok");
-
-    // test making sure a value passes validation
-    print!("Running Test:  with_validation()...");
-    with_validation();
-    println!("Ok");
-
-    // test finding missing required arguments
-    print!("Running Test:  missing_required()...");
-    missing_required();
-    println!("Ok");
-
-    // test missing optional arguments should not error
-    println!("Running Test: missing_optional()...");
-    missing_optional();
-    println!("Ok");
-
-    // test that all required args are present and valid
-    print!("Running Test:  parse_args()...");
-    parse_args();
-    println!("Ok");
-}
-
-fn with_value() {
-    let args = default_args();
-    match args.get("with_value") {
-        Ok(value_opt) => match value_opt {
-            Some(value) => assert_eq!(value, "this_is_value"),
-            None => panic!("The argument 'with_value' should have provided a value"),
-        },
-        Err(err) => panic!(
-            "Error getting argument from command line 'with_value': {:?}",
-            err
-        ),
-    }
-}
-
-fn as_flag() {
-    let args = default_args();
-    match args.get("as_flag") {
-        Ok(value_opt) => match value_opt {
-            Some(_value) => panic!("Flags should not have any values"),
-            None => {}
-        },
-        Err(err) => panic!(
-            "Eror getting argument from command line 'as_flag': {:?}",
-            err
-        ),
-    }
-}
-
-fn with_validation() {
-    let args = default_args();
-    match args.get("bad_val") {
-        Ok(_) => panic!("The value for argument 'bad_val' should not have passed validation"),
-        Err(err) => match err {
-            ArgError::InvalidValue => {}
-            _ => panic!(
-                "Error getting argument from command line 'bad_val': {:?}",
-                err
-            ),
-        },
-    }
-    match args.get("good_val") {
-        Ok(value_opt) => match value_opt {
-            Some(_value) => {}
-            None => panic!("The argument 'good_val' should have provided a value"),
-        },
-        Err(err) => panic!(
-            "Eror getting argument 'good_val' from command line: {:?}",
-            err
-        ),
-    }
-}
-
-fn get_short() {
-    let args = default_args();
-    // will get from command line as '-s'
-    match args.get("short_arg") {
-        Ok(value_opt) => match value_opt {
-            Some(_value) => panic!("Flags should not have any values"),
-            None => {}
-        },
-        Err(err) => panic!(
-            "Eror getting argument 'short_arg' *by the short name* from command line '-s': {:?}",
-            err
-        ),
-    }
-}
-
-fn missing_required() {
-    let args = default_args();
-    match args.get("missing_required") {
-        Ok(_value) => {
-            panic!("The argument 'missing_required' should be missing from cli arguments")
-        }
-        Err(err) => match err {
-            ArgError::RequiredNotFound => {}
-            _ => panic!("Error getting argument from the command line 'missing_required'"),
-        },
-    }
-}
-
-fn missing_optional() {
-    let args = default_args();
-    match args.get("missing_optional") {
-        Ok(opt) => match opt {
-            Some(_value) => panic!("a missing arg should have no value"),
-            None => {} // expected
-        },
-        Err(_cause) => panic!("a missing optional argument is not an error"),
-    }
-}
-
-fn parse_args() {
-    let bad_args = AssertUnwindSafe(default_args());
-    // catch the panic from the library (like the #[should_panic] attribute in cargo's ootb test harness)
-    match panic::catch_unwind(|| {
-        // silence the library's panic output
-        panic::set_hook(Box::new(|_| {}));
-        bad_args.parse_args();
-        let _ = panic::take_hook(); // restore panic output
-    }) {
-        Ok(_result) => panic!("Parsing arguments should have failed"),
-        Err(_cause) => {} // parse_args() panicked as expected
+    // Scenario 2: optional omitted -> absent.
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::value("opt"));
+        assert_eq!(r.read("opt", &tokens(&[])).unwrap(), OptionResult::Absent);
     }
 
-    let mut good_args = Args::new();
-    good_args.add(
-        "with_value".to_owned(),
-        ArgOpts {
-            short: None,
-            description: Some("Test of argument with a required value".to_owned()),
-            is_required: true,
-            is_flag: false,
-            validation: None,
-        },
-    );
-    good_args.add(
-        "short_arg".to_owned(),
-        ArgOpts {
-            short: Some("s".to_owned()),
-            description: Some(
-                "Test of argument with a value that requires simple validation".to_owned(),
-            ),
-            is_required: false,
-            is_flag: true,
-            validation: None,
-        },
-    );
-    good_args.add(
-        "as_flag".to_owned(),
-        ArgOpts {
-            short: Some("f".to_owned()),
-            description: Some("Test of argument without value (flag)".to_owned()),
-            is_required: false,
-            is_flag: true,
-            validation: None,
-        },
-    );
-    let good_args = AssertUnwindSafe(good_args);
-    match panic::catch_unwind(|| good_args.parse_args()) {
-        Ok(_result) => {} // did not panic as expected.
-        Err(_cause) => panic!("Parsing arguments should NOT have paniced"),
+    // Scenario 3: flag present (long form).
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::flag("verbose"));
+        assert_eq!(
+            r.read("verbose", &tokens(&["--verbose"])).unwrap(),
+            OptionResult::Flag
+        );
     }
-}
 
-fn default_args() -> Args {
-    let mut args = Args::new();
-    args.add(
-        "missing_required".to_owned(),
-        ArgOpts {
-            short: None,
-            description: Some(
-                "This argument is present, but should not be found in args".to_owned(),
-            ),
-            is_required: true,
-            is_flag: false,
-            validation: None,
-        },
-    );
-    args.add(
-        "missing_optional".to_owned(),
-        ArgOpts {
-            short: None,
-            description: Some(
-                "This argument is present, but should not be found in args".to_owned(),
-            ),
-            is_required: false,
-            is_flag: false,
-            validation: None,
-        },
-    );
-    args.add(
-        "with_value".to_owned(),
-        ArgOpts {
-            short: None,
-            description: Some("Test of argument with a required value".to_owned()),
-            is_required: true,
-            is_flag: false,
-            validation: None,
-        },
-    );
-    args.add(
-        "short_arg".to_owned(),
-        ArgOpts {
-            short: Some("s".to_owned()),
-            description: Some(
-                "Test of argument with a value that requires simple validation".to_owned(),
-            ),
-            is_required: false,
-            is_flag: true,
-            validation: None,
-        },
-    );
-    args.add(
-        "as_flag".to_owned(),
-        ArgOpts {
-            short: Some("f".to_owned()),
-            description: Some("Test of argument without value (flag)".to_owned()),
-            is_required: false,
-            is_flag: true,
-            validation: None,
-        },
-    );
-    args.add(
-        "bad_val".to_owned(),
-        ArgOpts {
-            short: None,
-            description: Some(
-                "Test of argument with a value that should fail validation".to_owned(),
-            ),
-            is_required: false,
-            is_flag: false,
-            validation: Some(Box::new(|input| input == "webe is great")),
-        },
-    );
-    args.add(
-        "good_val".to_owned(),
-        ArgOpts {
-            short: None,
-            description: Some(
-                "Test of argument with a value that should pass validation".to_owned(),
-            ),
-            is_required: false,
-            is_flag: false,
-            validation: Some(Box::new(|input| input == "webe is great")),
-        },
-    );
-    return args;
+    // Scenario 4: flag via short alias (same as long).
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::flag("verbose").short("v"));
+        assert_eq!(
+            r.read("verbose", &tokens(&["-v"])).unwrap(),
+            OptionResult::Flag
+        );
+    }
+
+    // Scenario 5: value preserved verbatim.
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::value("name"));
+        assert_eq!(
+            r.read("name", &tokens(&["--name", "webe is great"]))
+                .unwrap(),
+            OptionResult::Value("webe is great".to_string())
+        );
+    }
+
+    // Scenario 6: missing required.
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::value("port").required());
+        assert_eq!(
+            r.validate(&tokens(&[])).failures(),
+            &[ParseFailure::MissingRequired("port".to_string())]
+        );
+    }
+
+    // Scenario 7: missing value (end of input).
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::value("port"));
+        assert_eq!(
+            r.validate(&tokens(&["--port"])).failures(),
+            &[ParseFailure::MissingValue("port".to_string())]
+        );
+    }
+
+    // Scenario 8: missing value (dash-prefixed next token).
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::value("port"))
+            .add(OptionDef::flag("verbose"));
+        assert_eq!(
+            r.validate(&tokens(&["--port", "--verbose"])).failures(),
+            &[ParseFailure::MissingValue("port".to_string())]
+        );
+    }
+
+    // Scenario 9: invalid value.
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::value("port").validate(|v| v.parse::<u16>().is_ok()));
+        assert_eq!(
+            r.read("port", &tokens(&["--port", "notanumber"])),
+            Err(ParseFailure::InvalidValue("port".to_string()))
+        );
+    }
+
+    // Scenario 10: valid value passes.
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::value("port").validate(|v| v.parse::<u16>().is_ok()));
+        assert!(r.validate(&tokens(&["--port", "8080"])).is_success());
+    }
+
+    // Scenario 11: unknown option.
+    {
+        let r = Registry::new();
+        assert_eq!(
+            r.validate(&tokens(&["--bogus", "x"])).failures(),
+            &[
+                ParseFailure::UnknownOption("--bogus".to_string()),
+                ParseFailure::UnexpectedArgument("x".to_string()),
+            ]
+        );
+    }
+
+    // Scenario 12: duplicate (repeated long).
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::value("port"));
+        assert_eq!(
+            r.validate(&tokens(&["--port", "1", "--port", "2"]))
+                .failures(),
+            &[ParseFailure::DuplicateOption("port".to_string())]
+        );
+    }
+
+    // Scenario 13: duplicate (long + short).
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::flag("verbose").short("v"));
+        assert_eq!(
+            r.validate(&tokens(&["--verbose", "-v"])).failures(),
+            &[ParseFailure::DuplicateOption("verbose".to_string())]
+        );
+    }
+
+    // Scenario 14: unexpected positional.
+    {
+        let r = Registry::new();
+        assert_eq!(
+            r.validate(&tokens(&["extra"])).failures(),
+            &[ParseFailure::UnexpectedArgument("extra".to_string())]
+        );
+    }
+
+    // Scenario 15: conflicting definitions.
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::value("port"))
+            .add(OptionDef::value("port"));
+        assert_eq!(
+            r.validate(&tokens(&[])).failures(),
+            &[ParseFailure::ConflictingDefinition("port".to_string())]
+        );
+    }
+
+    // Scenario 16: undeclared lookup.
+    {
+        let r = Registry::new();
+        assert_eq!(
+            r.read("undeclared", &tokens(&[])),
+            Err(ParseFailure::UndeclaredLookup("undeclared".to_string()))
+        );
+    }
+
+    // Scenario 17: all failures, deterministic order.
+    {
+        let mut r = Registry::new();
+        r.add(OptionDef::value("port").required());
+        assert_eq!(
+            r.validate(&tokens(&["--bogus", "extra", "--port"]))
+                .failures(),
+            &[
+                ParseFailure::UnknownOption("--bogus".to_string()),
+                ParseFailure::UnexpectedArgument("extra".to_string()),
+                ParseFailure::MissingValue("port".to_string()),
+            ]
+        );
+    }
 }

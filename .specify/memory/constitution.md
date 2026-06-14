@@ -33,7 +33,7 @@ Follow-up TODOs:
     the first governed version.
 -->
 
-# WebE Toolkit Constitution
+# Webe Toolkit Constitution
 
 ## Core Principles
 
@@ -150,7 +150,7 @@ value proposition on the limited hardware hobbyists typically run.
 
 ## Governance
 
-This constitution supersedes other development practices for the WebE Toolkit
+This constitution supersedes other development practices for the Webe Toolkit
 workspace. When guidance conflicts, the constitution wins.
 
 - **Amendments**: Proposed via change request describing the rationale and

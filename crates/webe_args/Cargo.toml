@@ -5,12 +5,4 @@ edition.workspace = true
 
 [dependencies]
 
-[features]
-manual-cli-test = []
-
 [dev-dependencies]
-
-[[test]]
-name = "cli"
-harness = false
-required-features = ["manual-cli-test"]
