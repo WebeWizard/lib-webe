@@ -2,6 +2,7 @@
 name = "webe_web"
 version.workspace = true
 edition.workspace = true
+readme = "README.md"
 
 [dependencies]
 async-trait.workspace = true # witchcraft to make async work in dyn trait objects
@@ -10,3 +11,7 @@ limit_read = "0.2.0"
 serde.workspace = true
 serde_json.workspace = true
 pin-project-lite = "0.2"
+
+[dev-dependencies]
+tokio.workspace = true
+async-trait.workspace = true

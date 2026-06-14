@@ -1,7 +1,7 @@
 use std::boxed::Box;
 use std::collections::HashMap;
 use std::fs::File;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 use tokio::io::BufReader;
@@ -14,11 +14,15 @@ use super::Validation;
 use super::ValidationResult;
 use crate::constants::{DEFAULT_MIME_TYPES, MIME_OCTET_STREAM};
 
+/// How a [`FileResponder`] resolves file extensions to MIME types.
 pub enum MimeTypeList {
+    /// Use the crate's built-in [`crate::constants::DEFAULT_MIME_TYPES`] table.
     Default,
+    /// Use a caller-supplied list of `(extension, mime_type)` pairs.
     Custom(Vec<(String, String)>),
 }
 
+/// Serves files from a mount point, resolving a route parameter to a path.
 pub struct FileResponder {
     mount_point: PathBuf,
     path_param: String, // specifies the route parameter that provides file path relative to mount point
@@ -26,12 +30,19 @@ pub struct FileResponder {
     mime_types: MimeTypeList,
 }
 
+/// Why a [`FileResponder`] could not be constructed.
 #[derive(Debug)]
 pub enum FileResponderError {
+    /// The mount point path could not be resolved (e.g. it does not exist).
     BadPath,
 }
 
 impl FileResponder {
+    /// Creates a responder that serves files under `mount_point`.
+    ///
+    /// `path_param` names the route parameter whose value is the requested path
+    /// relative to the mount point. Returns [`FileResponderError::BadPath`] when
+    /// `mount_point` cannot be canonicalized.
     pub fn new(
         mount_point: String,
         path_param: String,
@@ -40,16 +51,19 @@ impl FileResponder {
         match mount_point.canonicalize() {
             Ok(abs_path) => Ok(FileResponder {
                 mount_point: abs_path,
-                path_param: path_param,
+                path_param,
                 use_index: true,
                 mime_types: MimeTypeList::Default,
             }),
-            Err(_error) => return Err(FileResponderError::BadPath),
+            Err(_error) => Err(FileResponderError::BadPath),
         }
     }
 
-    // if this responder has a custom list of mime types, use it. otherwise use crate const default list
-    pub fn find_mime_type(&self, file_path: &PathBuf) -> &str {
+    /// Returns the MIME type for `file_path` based on its extension.
+    ///
+    /// Falls back to [`crate::constants::MIME_OCTET_STREAM`] when the extension
+    /// is unknown.
+    pub fn find_mime_type(&self, file_path: &Path) -> &str {
         match file_path.extension() {
             Some(extension) => match &self.mime_types {
                 MimeTypeList::Default => {
@@ -57,7 +71,7 @@ impl FileResponder {
                         .iter()
                         .find(|mime_type| mime_type.0 == extension)
                     {
-                        Some(result) => return result.1,
+                        Some(result) => result.1,
                         None => MIME_OCTET_STREAM,
                     }
                 }
@@ -65,7 +79,7 @@ impl FileResponder {
                     .iter()
                     .find(|mime_type| mime_type.0.as_str() == extension)
                 {
-                    Some(result) => return result.1.as_str(),
+                    Some(result) => result.1.as_str(),
                     None => MIME_OCTET_STREAM,
                 },
             },
@@ -90,12 +104,12 @@ impl FileResponder {
                             return Ok(Some(Box::new(abs_file_path.join("index.htm"))));
                         }
                     }
-                    return Err(Status::from_standard_code(404));
+                    Err(Status::from_standard_code(404))
                 } else {
-                    return Err(Status::from_standard_code(404)); // not in mounted directory or not a file
+                    Err(Status::from_standard_code(404)) // not in mounted directory or not a file
                 }
             }
-            Err(_error) => return Err(Status::from_standard_code(404)), // not found or failed to canonicalize
+            Err(_error) => Err(Status::from_standard_code(404)), // not found or failed to canonicalize
         }
     }
 
@@ -108,9 +122,9 @@ impl FileResponder {
             if file_path.is_symlink() {
                 return Err(Status::from_standard_code(404)); // can't replace symlinks
             }
-            return Ok(Some(Box::new(file_path)));
+            Ok(Some(Box::new(file_path)))
         } else {
-            return Err(Status::from_standard_code(404)); // not in mounted directory or not a file
+            Err(Status::from_standard_code(404)) // not in mounted directory or not a file
         }
     }
 
@@ -133,12 +147,12 @@ impl FileResponder {
                         response.headers = headers;
                         response.message_body =
                             Some(Box::pin(BufReader::new(tokio::fs::File::from_std(file))));
-                        return Ok(response);
+                        Ok(response)
                     }
-                    Err(_error) => return Err(500),
+                    Err(_error) => Err(500),
                 }
             }
-            Err(_error) => return Err(500),
+            Err(_error) => Err(500),
         }
     }
 
@@ -147,23 +161,16 @@ impl FileResponder {
         request: &mut Request<'_>,
         path: Box<PathBuf>,
     ) -> Result<Response, u16> {
-        dbg!(&request.headers);
         let create_file_result = tokio::fs::File::create(path.as_ref()).await;
         match create_file_result {
             Ok(mut file) => match request.message_body.as_mut() {
                 Some(body) => match tokio::io::copy_buf(body, &mut file).await {
-                    Ok(_) => {
-                        return Ok(Response::new(204));
-                    }
-                    Err(_) => return Err(500),
+                    Ok(_) => Ok(Response::new(204)),
+                    Err(_) => Err(500),
                 },
-                None => return Err(400),
+                None => Err(400),
             },
-            Err(err) => {
-                println!("Could not create file at: {:?}", path);
-                println!("{}", err);
-                return Err(500);
-            }
+            Err(_err) => Err(500),
         }
     }
 }
@@ -177,10 +184,7 @@ impl Responder for FileResponder {
         params: &Vec<(String, String)>,
         _validation: Validation,
     ) -> ValidationResult {
-        match params
-            .into_iter()
-            .find(|(key, _value)| *key == self.path_param)
-        {
+        match params.iter().find(|(key, _value)| *key == self.path_param) {
             Some((_key, path_string)) => {
                 // build the full path
                 let mut file_path = PathBuf::new();

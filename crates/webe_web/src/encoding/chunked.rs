@@ -1,3 +1,5 @@
+//! Streaming chunked transfer-coding decoder and (legacy) encoder primitives.
+
 const NEW_LINE: [u8; 2] = [b'\r', b'\n'];
 use std::io::{BufRead, Cursor, Error, Read, Write};
 use std::marker::Unpin;
@@ -10,6 +12,7 @@ use tokio::io::{AsyncBufRead, AsyncRead, ReadBuf};
 
 // Must use 'where' style trait bounds because of this bug: https://github.com/taiki-e/pin-project-lite/issues/2
 pin_project! {
+  /// An [`AsyncBufRead`] adapter that decodes a chunked transfer-coded body.
   pub struct ChunkedDecoder<B>
   where
     B: AsyncBufRead,
@@ -24,12 +27,13 @@ pin_project! {
 }
 
 impl<B: AsyncBufRead + Unpin> ChunkedDecoder<B> {
+    /// Wraps `inner`, decoding its chunked body as it is read.
     pub fn new(inner: B) -> ChunkedDecoder<B> {
         ChunkedDecoder {
             finished: false,
             cur_chunk_size: 0,
             cur_chunk_pos: 0,
-            inner: inner,
+            inner,
         }
     }
 }
@@ -100,23 +104,25 @@ impl<B: AsyncBufRead + Unpin> AsyncRead for ChunkedDecoder<B> {
                     *this.cur_chunk_size = 0;
                     buf.put_slice(&temp);
                 }
-                return Poll::Ready(Ok(()));
+                Poll::Ready(Ok(()))
             }
-            Err(error) => return Poll::Ready(Err(error)),
+            Err(error) => Poll::Ready(Err(error)),
         }
     }
 }
 
+/// A synchronous [`Write`] adapter that emits a body as chunked transfer-coding.
 pub struct ChunkedEncoder<W> {
     finished: bool,
     inner: W,
 }
 
 impl<W: Write> ChunkedEncoder<W> {
+    /// Wraps `inner`, encoding written data as chunked transfer-coding.
     pub fn new(inner: W) -> ChunkedEncoder<W> {
         ChunkedEncoder {
             finished: false,
-            inner: inner,
+            inner,
         }
     }
 }
@@ -143,20 +149,20 @@ impl<W: Write> Write for ChunkedEncoder<W> {
                                 if buf.is_empty() {
                                     self.finished = true;
                                 }
-                                return Ok(buf.len());
+                                Ok(buf.len())
                             }
-                            Err(error) => return Err(error),
+                            Err(error) => Err(error),
                         }
                     }
-                    Err(error) => return Err(error),
+                    Err(error) => Err(error),
                 }
             }
-            Err(error) => return Err(error),
+            Err(error) => Err(error),
         }
     }
 
     fn flush(&mut self) -> Result<(), Error> {
-        return self.inner.flush();
+        self.inner.flush()
     }
 }
 

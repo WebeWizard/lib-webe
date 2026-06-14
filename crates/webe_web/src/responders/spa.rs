@@ -8,45 +8,53 @@ use super::file::{FileResponder, FileResponderError};
 
 use async_trait::async_trait;
 
-// Used to capture stray endpoints that would normally be handled within the SPA
-// Ex.  User refreshes and loads a /flash/23434455 url
-pub struct SPAResponder {
+/// A single-page-app fallback responder.
+///
+/// Captures stray endpoints that the SPA handles client-side (for example, a
+/// user refreshing on a deep link such as `/flash/23434455`) by serving a single
+/// application index file. Internally delegates to a [`FileResponder`] mounted on
+/// the application file.
+///
+/// > Renamed from `SPAResponder` in the web crate revamp (see the crate README
+/// > migration notes).
+pub struct SpaResponder {
     app_file_path: String,
     file_responder: FileResponder,
 }
 
-impl SPAResponder {
-    // creates an inner file responder where the mount point becomes the complete app file path
+impl SpaResponder {
+    /// Creates a responder that always serves `app_file_path` from within
+    /// `mount_point`.
+    ///
+    /// Returns [`FileResponderError`] when the mount point cannot be resolved.
     pub fn new(
         mount_point: String,
         app_file_path: String,
-    ) -> Result<SPAResponder, FileResponderError> {
+    ) -> Result<SpaResponder, FileResponderError> {
         match FileResponder::new(mount_point, String::new()) {
-            Ok(file_responder) => Ok(SPAResponder {
-                app_file_path: app_file_path,
-                file_responder: file_responder,
+            Ok(file_responder) => Ok(SpaResponder {
+                app_file_path,
+                file_responder,
             }),
-            Err(error) => return Err(error),
+            Err(error) => Err(error),
         }
     }
 }
 
 #[async_trait]
-impl Responder for SPAResponder {
+impl Responder for SpaResponder {
     async fn validate(
         &self,
         request: &Request,
         _params: &Vec<(String, String)>,
         validation: Validation,
     ) -> ValidationResult {
-        // pass on to the internal file responder, but fudge the param
-        let mut fudged_params = Vec::new();
-        // param gets set to an empty string so that app_file_path becomes the complete path
-        fudged_params.push((String::new(), self.app_file_path.clone()));
-        return self
-            .file_responder
+        // pass on to the internal file responder, but fudge the param so the
+        // app file path becomes the complete path (empty param name)
+        let fudged_params = vec![(String::new(), self.app_file_path.clone())];
+        self.file_responder
             .validate(request, &fudged_params, validation)
-            .await;
+            .await
     }
 
     async fn build_response(
@@ -55,9 +63,8 @@ impl Responder for SPAResponder {
         params: &Vec<(String, String)>,
         validation: Validation,
     ) -> Result<Response, u16> {
-        return self
-            .file_responder
+        self.file_responder
             .build_response(request, params, validation)
-            .await;
+            .await
     }
 }

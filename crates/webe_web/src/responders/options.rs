@@ -5,6 +5,7 @@ use super::Responder;
 use super::Response;
 use super::Validation;
 
+/// Answers `OPTIONS` preflight requests with CORS headers.
 pub struct OptionsResponder {
     origin: String,
     methods: String,
@@ -12,11 +13,13 @@ pub struct OptionsResponder {
 }
 
 impl OptionsResponder {
+    /// Creates a responder that replies with the given CORS
+    /// `Access-Control-Allow-Origin`, `-Methods`, and `-Headers` values.
     pub fn new(origin: String, methods: String, headers: String) -> OptionsResponder {
         OptionsResponder {
-            origin: origin,
-            methods: methods,
-            headers: headers,
+            origin,
+            methods,
+            headers,
         }
     }
 }

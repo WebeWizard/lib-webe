@@ -46,3 +46,4 @@ webe_args = { path = "crates/webe_args", optional = true }
 
 [dev-dependencies]
 dotenvy = "0.15"
+tokio = { workspace = true }

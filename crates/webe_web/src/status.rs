@@ -1,21 +1,30 @@
+//! HTTP status codes and their standard reason phrases.
+
+/// An HTTP status: a numeric code paired with its reason phrase.
 pub struct Status {
+    /// The numeric status code (e.g. `200`).
     pub code: u16,
+    /// The human-readable reason phrase (e.g. `OK`).
     pub reason: String,
 }
 
 impl Status {
-    // this is only for standard status codes.
-    // if you want a custom status, you'll have to make it yourself
+    /// Builds a [`Status`] for a standard code, filling in its reason phrase.
+    ///
+    /// For non-standard codes the reason phrase falls back to a generic value;
+    /// construct [`Status`] directly to use a fully custom reason.
     pub fn from_standard_code(code: u16) -> Status {
         let reason = Status::get_standard_reason(code);
-        return Status {
-            code: code,
+        Status {
+            code,
             reason: reason.to_owned(),
-        };
+        }
     }
 
-    // these are all status codes defined by HTTP 1.1
-    // this SHOULD NOT be used as a strict list of codes because custom codes are allowed
+    /// Returns the standard HTTP/1.1 reason phrase for `code`.
+    ///
+    /// This is not an exhaustive whitelist; custom codes are permitted and map
+    /// to a generic reason phrase.
     pub fn get_standard_reason(code: u16) -> &'static str {
         match code {
             100 => "Continue",

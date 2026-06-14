@@ -45,7 +45,7 @@ Code MUST be clear, idiomatic, and maintainable before it is clever.
   the default toolchain pinned in `rust-toolchain.toml`; warnings are treated as
   errors in CI.
 - Public items in every crate (`webe_args`, `webe_auth`, `webe_log`, `webe_web`,
-  and the `webe` facade) MUST carry doc comments describing intent, parameters,
+  the `webe` facade, etc) MUST carry doc comments describing intent, parameters,
   and failure modes.
 - `unsafe` code is prohibited unless an inline comment justifies it and an
   integration or unit test exercises the invariant it relies on.
@@ -88,7 +88,7 @@ across crates.
   conventions across crates; a pattern established in one crate MUST be reused,
   not reinvented, in another.
 - The `webe` facade MUST re-export crate functionality under stable, predictable
-  module paths (`webe::web`, `webe::auth`, `webe::log`, `webe::args`), and
+  module paths (`webe::web`, `webe::auth`, `webe::log`, `webe::args`, etc), and
   feature flags MUST gate optional crates exactly as documented in the README.
 - Error messages and logs surfaced to developers MUST be actionable: they MUST
   state what failed and, where possible, how to resolve it.
