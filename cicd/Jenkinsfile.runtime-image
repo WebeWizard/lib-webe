@@ -16,14 +16,17 @@ pipeline {
     stage('Resolve Rust Version') {
       steps {
         script {
-          def manifest = readFile('Cargo.toml')
-          def rustVersionMatch = manifest =~ /(?m)^\s*rust-version\s*=\s*"([^"]+)"/
+          env.RUST_VERSION = sh(
+            script: '''
+              awk -F'"' '/^[[:space:]]*rust-version[[:space:]]*=/ { print $2; exit }' Cargo.toml
+            ''',
+            returnStdout: true
+          ).trim()
 
-          if (!rustVersionMatch.find()) {
+          if (!env.RUST_VERSION) {
             error('rust-version not found in Cargo.toml')
           }
 
-          env.RUST_VERSION = rustVersionMatch.group(1)
           env.IMAGE_TAG = "${env.IMAGE_NAME}:${env.RUST_VERSION}"
 
           writeFile file: env.RUST_VERSION_MARKER, text: "${env.RUST_VERSION}\n"
