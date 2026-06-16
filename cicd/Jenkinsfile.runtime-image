@@ -1,0 +1,119 @@
+pipeline {
+  agent any
+
+  options {
+    disableConcurrentBuilds()
+    timestamps()
+  }
+
+  environment {
+    DOCKER_BUILDKIT = '1'
+    IMAGE_NAME = 'webe-rust-runtime'
+    RUST_VERSION_MARKER = 'cicd/runtime-image-rust-version.txt'
+  }
+
+  stages {
+    stage('Resolve Rust Version') {
+      steps {
+        script {
+          def manifest = readFile('Cargo.toml')
+          def rustVersionMatch = manifest =~ /(?m)^\s*rust-version\s*=\s*"([^"]+)"/
+
+          if (!rustVersionMatch.find()) {
+            error('rust-version not found in Cargo.toml')
+          }
+
+          env.RUST_VERSION = rustVersionMatch.group(1)
+          env.IMAGE_TAG = "${env.IMAGE_NAME}:${env.RUST_VERSION}"
+
+          writeFile file: env.RUST_VERSION_MARKER, text: "${env.RUST_VERSION}\n"
+          echo "Cargo.toml rust-version is ${env.RUST_VERSION}"
+        }
+      }
+    }
+
+    stage('Check Previous Complete Build') {
+      steps {
+        script {
+          env.PREVIOUS_RUST_VERSION = ''
+
+          copyArtifacts(
+            projectName: env.JOB_NAME,
+            selector: lastSuccessful(),
+            filter: env.RUST_VERSION_MARKER,
+            target: '.previous-runtime-image',
+            optional: true,
+            fingerprintArtifacts: true
+          )
+
+          def previousMarker = ".previous-runtime-image/${env.RUST_VERSION_MARKER}"
+          if (fileExists(previousMarker)) {
+            env.PREVIOUS_RUST_VERSION = readFile(previousMarker).trim()
+          }
+
+          env.BUILD_RUNTIME_IMAGE = env.PREVIOUS_RUST_VERSION == env.RUST_VERSION ? 'false' : 'true'
+
+          if (env.BUILD_RUNTIME_IMAGE == 'true') {
+            echo "Rust version changed from '${env.PREVIOUS_RUST_VERSION ?: 'none'}' to '${env.RUST_VERSION}'; building ${env.IMAGE_TAG}"
+          } else {
+            echo "Rust version is unchanged at ${env.RUST_VERSION}; skipping runtime image build"
+          }
+        }
+      }
+    }
+
+    stage('Build Runtime Image') {
+      when {
+        expression { env.BUILD_RUNTIME_IMAGE == 'true' }
+      }
+
+      steps {
+        script {
+          writeFile file: 'cicd/Dockerfile.runtime-image.generated', text: '''
+ARG RUST_VERSION
+FROM debian:bookworm-slim
+
+ARG RUST_VERSION
+ENV CARGO_HOME=/usr/local/cargo
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV PATH=/usr/local/cargo/bin:$PATH
+
+LABEL org.opencontainers.image.title="webe Rust runtime"
+LABEL org.opencontainers.image.rust.version="${RUST_VERSION}"
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates curl build-essential pkg-config; \
+    rm -rf /var/lib/apt/lists/*; \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh; \
+    sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain "${RUST_VERSION}" --no-modify-path; \
+    rm /tmp/rustup-init.sh; \
+    rustup default "${RUST_VERSION}"; \
+    rustc --version; \
+    cargo --version
+
+WORKDIR /workspace
+'''.stripIndent().trim() + '\n'
+        }
+
+        sh '''
+          set -eu
+
+          docker build \
+            --build-arg "RUST_VERSION=${RUST_VERSION}" \
+            --label "org.opencontainers.image.rust.version=${RUST_VERSION}" \
+            --tag "${IMAGE_TAG}" \
+            --tag "${IMAGE_NAME}:latest" \
+            --file cicd/Dockerfile.runtime-image.generated \
+            .
+        '''
+      }
+    }
+  }
+
+  post {
+    success {
+      archiveArtifacts artifacts: env.RUST_VERSION_MARKER, fingerprint: true, onlyIfSuccessful: true
+    }
+  }
+}
