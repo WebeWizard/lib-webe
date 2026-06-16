@@ -1,0 +1,49 @@
+pipeline {
+  agent any
+
+  options {
+    timestamps()
+  }
+
+  environment {
+    CARGO_HOME = "${WORKSPACE}/.cargo"
+    RUSTUP_HOME = "${WORKSPACE}/.rustup"
+    PATH = "${WORKSPACE}/.cargo/bin:${PATH}"
+  }
+
+  stages {
+    stage('Install Rust') {
+      steps {
+        sh '''
+          set -eu
+
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --no-modify-path
+          fi
+
+          RUST_VERSION="$(awk -F'"' '/^[[:space:]]*rust-version[[:space:]]*=/ { print $2; exit }' Cargo.toml)"
+          if [ -z "${RUST_VERSION}" ]; then
+            echo 'rust-version not found in Cargo.toml' >&2
+            exit 1
+          fi
+
+          rustup toolchain install "${RUST_VERSION}" --profile minimal
+          rustup default "${RUST_VERSION}"
+
+          rustc --version
+          cargo --version
+        '''
+      }
+    }
+
+    stage('Unit Tests') {
+      steps {
+        sh '''
+          set -eu
+
+          cargo test --workspace --exclude webe_auth
+        '''
+      }
+    }
+  }
+}
